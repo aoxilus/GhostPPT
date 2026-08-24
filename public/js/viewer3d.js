@@ -43,20 +43,22 @@ export class Viewer3D {
     // Procedural Textures (Tanjiro Checkered Squares & Slate Rock)
     const createTanjiroTexture = () => {
       const canvas = document.createElement('canvas');
-      canvas.width = 128;
-      canvas.height = 128;
+      canvas.width = 256;
+      canvas.height = 256;
       const ctx = canvas.getContext('2d');
       const sz = 32;
-      for (let r = 0; r < 4; r++) {
-        for (let c = 0; c < 4; c++) {
-          ctx.fillStyle = (r + c) % 2 === 0 ? '#059669' : '#111827';
+      for (let r = 0; r < 8; r++) {
+        for (let c = 0; c < 8; c++) {
+          ctx.fillStyle = (r + c) % 2 === 0 ? '#10b981' : '#090d16';
           ctx.fillRect(c * sz, r * sz, sz, sz);
         }
       }
       const tex = new THREE.CanvasTexture(canvas);
       tex.wrapS = THREE.RepeatWrapping;
       tex.wrapT = THREE.RepeatWrapping;
-      tex.repeat.set(6, 6);
+      tex.repeat.set(4, 4);
+      tex.magFilter = THREE.NearestFilter;
+      tex.minFilter = THREE.LinearMipMapLinearFilter;
       return tex;
     };
 
@@ -82,7 +84,44 @@ export class Viewer3D {
       return tex;
     };
 
-    // Materials (Mate, Metal, Tanjiro Squares, Rock Granite, Wireframe colors)
+    // Auto-Calculate Triplanar UVs for STL and OBJ files (Enables textures on any 3D model)
+    this.ensureTriplanarUVs = (geometry) => {
+      if (!geometry || !geometry.attributes.position) return;
+      geometry.computeBoundingBox();
+      geometry.computeVertexNormals();
+      const bbox = geometry.boundingBox;
+      const size = new THREE.Vector3().subVectors(bbox.max, bbox.min);
+      const maxDim = Math.max(size.x, size.y, size.z) || 1;
+      const pos = geometry.attributes.position;
+      const normals = geometry.attributes.normal;
+      const uvs = [];
+
+      for (let i = 0; i < pos.count; i++) {
+        const x = pos.getX(i);
+        const y = pos.getY(i);
+        const z = pos.getZ(i);
+
+        let nx = 0, ny = 1, nz = 0;
+        if (normals) {
+          nx = Math.abs(normals.getX(i));
+          ny = Math.abs(normals.getY(i));
+          nz = Math.abs(normals.getZ(i));
+        }
+
+        // Zero-distortion triplanar mapping based on surface orientation
+        if (nx >= ny && nx >= nz) {
+          uvs.push(((z - bbox.min.z) / maxDim) * 4, ((y - bbox.min.y) / maxDim) * 4);
+        } else if (ny >= nx && ny >= nz) {
+          uvs.push(((x - bbox.min.x) / maxDim) * 4, ((z - bbox.min.z) / maxDim) * 4);
+        } else {
+          uvs.push(((x - bbox.min.x) / maxDim) * 4, ((y - bbox.min.y) / maxDim) * 4);
+        }
+      }
+      geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+      geometry.uvsNeedUpdate = true;
+    };
+
+    // Materials (Mate, Metal Bluish Silver, Tanjiro Squares, Rock Granite, Wireframe colors)
     this.materials = {
       plain: new THREE.MeshStandardMaterial({
         color: 0xc8ced6,
@@ -91,9 +130,9 @@ export class Viewer3D {
         side: THREE.DoubleSide
       }),
       metal: new THREE.MeshStandardMaterial({
-        color: 0xe2e8f0,
-        metalness: 0.9,
-        roughness: 0.18,
+        color: 0xa5c4e8, // Bluish Silver (Plateado Azulado)
+        metalness: 0.95,
+        roughness: 0.16,
         side: THREE.DoubleSide
       }),
       squares: new THREE.MeshStandardMaterial({
@@ -553,27 +592,18 @@ export class Viewer3D {
   }
 
   // Material Switching
-  setMaterial(mode) {
-    if (!this.materials[mode] || !this.loadedObject) return;
-    this.currentViewMode = mode;
-    const mat = this.materials[mode];
-
-    this.loadedObject.traverse(child => {
-      if (child.isMesh) {
-        child.material = mat;
-        child.material.needsUpdate = true;
-      }
-    });
-  }
-
-  // Theme Switching (Light Studio vs Dark Studio)
+  // Material Switching (Mate, Metal, Tanjiro Squares, Rock Granite, Wireframe colors)
   setMaterial(mode) {
     this.currentViewMode = mode;
     const mat = this.materials[mode] || this.materials.plain;
     if (this.loadedObject) {
       this.loadedObject.traverse((child) => {
         if (child.isMesh) {
+          if (child.geometry) {
+            this.ensureTriplanarUVs(child.geometry);
+          }
           child.material = mat;
+          child.material.needsUpdate = true;
         }
       });
     }
@@ -686,11 +716,18 @@ export class Viewer3D {
           const geometry = loadedGeometryOrGroup;
           geometry.center();
           geometry.computeVertexNormals();
+          this.ensureTriplanarUVs(geometry);
 
           const mat = this.materials[this.currentViewMode] || this.materials.plain;
           root = new THREE.Mesh(geometry, mat);
         } else {
           root = loadedGeometryOrGroup;
+          root.traverse((child) => {
+            if (child.isMesh && child.geometry) {
+              child.geometry.computeVertexNormals();
+              this.ensureTriplanarUVs(child.geometry);
+            }
+          });
         }
 
         root.name = 'loadedObject';
