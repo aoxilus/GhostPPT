@@ -446,45 +446,34 @@ export class Viewer3D {
     }
   }
 
-  // Translucent Hotspot Sphere (See-Through Red Glass + Bright Center Point)
+  // Translucent Hotspot Sphere (Single See-Through Red Glass Sphere, >50% Transparency)
   setMarker(x, y, z) {
     if (x === null || y === null || z === null || x === undefined) {
       this.clearMarker();
       return;
     }
-    if (!this.markerGroup) {
-      this.markerGroup = new THREE.Group();
-
-      // Outer see-through glass dome (0.45 opacity, depthWrite: false so STL is clearly visible)
-      const outerGeo = new THREE.SphereGeometry(0.18, 32, 32);
-      const outerMat = new THREE.MeshStandardMaterial({
+    if (!this.markerMesh) {
+      const geo = new THREE.SphereGeometry(0.18, 32, 32);
+      const mat = new THREE.MeshStandardMaterial({
         color: 0xef4444,
         roughness: 0.15,
         metalness: 0.1,
         transparent: true,
-        opacity: 0.45,
-        depthWrite: false,
+        opacity: 0.38, // 62% transparent (more than 50% see-through)
+        depthWrite: false, // STL geometry is fully visible through the sphere
         side: THREE.DoubleSide
       });
-      const outerMesh = new THREE.Mesh(outerGeo, outerMat);
-      this.markerGroup.add(outerMesh);
-
-      // Inner white pinpoint dot (Core)
-      const innerGeo = new THREE.SphereGeometry(0.04, 16, 16);
-      const innerMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.95 });
-      const innerMesh = new THREE.Mesh(innerGeo, innerMat);
-      this.markerGroup.add(innerMesh);
-
-      this.scene.add(this.markerGroup);
+      this.markerMesh = new THREE.Mesh(geo, mat);
+      this.scene.add(this.markerMesh);
     }
 
-    this.markerGroup.position.set(x, y, z);
-    this.markerGroup.visible = true;
+    this.markerMesh.position.set(x, y, z);
+    this.markerMesh.visible = true;
     this.markerPosition = { x, y, z };
   }
 
   clearMarker() {
-    if (this.markerGroup) this.markerGroup.visible = false;
+    if (this.markerMesh) this.markerMesh.visible = false;
     this.markerPosition = null;
   }
 
@@ -709,9 +698,9 @@ export class Viewer3D {
     }
 
     // Subtle gentle pulse for translucent marker sphere
-    if (this.markerGroup && this.markerGroup.visible) {
+    if (this.markerMesh && this.markerMesh.visible) {
       const scale = 1.0 + 0.08 * Math.sin(Date.now() * 0.005);
-      this.markerGroup.scale.set(scale, scale, scale);
+      this.markerMesh.scale.set(scale, scale, scale);
     }
 
     this.controls.update();
