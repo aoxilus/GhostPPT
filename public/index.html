@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GhostPPT 3D Studio</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body class="studio-theme" data-theme="light">
+
+  <!-- STUDIO TOP BAR -->
+  <header class="studio-topbar">
+    <div class="topbar-left">
+      <div class="brand">
+        <span class="brand-badge">3D</span>
+        <span class="brand-name">Ghost<strong>PPT</strong></span>
+      </div>
+
+      <!-- WORKSPACE TABS -->
+      <nav class="view-switch">
+        <button id="tab-btn-editor" class="view-tab active" data-tab="editor">Editor 3D</button>
+        <button id="tab-btn-presentation" class="view-tab" data-tab="presentation">Presentación</button>
+        <button id="tab-btn-models" class="view-tab" data-tab="models">Archivos 3D</button>
+      </nav>
+    </div>
+
+    <!-- MODEL SELECTOR IN TOP BAR -->
+    <div class="topbar-center">
+      <div class="model-picker">
+        <label for="select-active-model">Modelo:</label>
+        <select id="select-active-model" class="studio-select">
+          <option value="">Cargando modelos...</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="topbar-right">
+      <button id="btn-theme-toggle" class="btn-theme" title="Alternar Modo Claro / Oscuro">☀️ Claro</button>
+      <div class="divider-v"></div>
+      <button id="btn-quick-autocenter" class="btn-topbar" title="Auto-centrar modelo y ajustar cámara">🎯 Auto Center</button>
+      <div class="divider-v"></div>
+      <div class="cam-badge" id="hud-cam-display">CAM: X:0.0 Y:1.5 Z:7.5</div>
+    </div>
+  </header>
+
+  <!-- ========================================================
+       STAGE 1: 3D STUDIO EDITOR
+       ======================================================== -->
+  <div id="stage-editor" class="stage-view active">
+    
+    <!-- 3D VIEWPORT CONTAINER -->
+    <div class="viewport-wrapper">
+      <div id="studio-canvas-container" class="canvas-3d"></div>
+
+      <!-- SKEUOMORPHIC TOOL STATUS TOAST -->
+      <div id="tool-status-toast" class="tool-toast hidden">
+        <span class="toast-dot"></span>
+        <span id="tool-status-message">Modo activo</span>
+      </div>
+
+      <!-- DRAGGABLE & RESIZABLE TEXT ANNOTATION OVERLAY CARD -->
+      <div id="text-card-overlay" class="text-card hidden">
+        <div class="text-card-header" id="text-card-drag-handle">
+          <span class="text-card-title">📝 Anotación de Texto</span>
+          <div class="text-card-tools">
+            <button id="btn-contrast-toggle" class="btn-tiny" title="Cambiar Contraste (Oscuro/Claro)">🌓</button>
+            <button id="btn-close-text-card" class="btn-tiny btn-close-card">&times;</button>
+          </div>
+        </div>
+        <div class="text-card-body">
+          <textarea id="text-annotation-content" placeholder="Escribe aquí tu explicación o título en grande..." rows="3"></textarea>
+        </div>
+        <div class="text-card-resize-handle"></div>
+      </div>
+
+      <!-- RIGHT-SIDE FLOATING TOOL PALETTE (SKEUOMORPHIC DOCK) -->
+      <aside class="floating-palette">
+        
+        <!-- ANNOTATION TOOLS -->
+        <div class="palette-section">
+          <span class="palette-label">Anotar</span>
+          
+          <!-- ARROW TOOL (Alpha .50 on select -> .75 on hover -> 1.0 on draw) -->
+          <button id="tool-btn-arrow" class="tool-icon-btn" title="Flecha 3D: Clic para activar (Alpha .50), clic en origen (Alpha .75), clic en destino (Alpha 1.0)">
+            <span class="tool-icon">🏹</span>
+            <span class="tool-name">Flecha 3D</span>
+            <span class="alpha-indicator" id="arrow-alpha-badge">OFF</span>
+          </button>
+
+          <!-- SPHERE HOTSPOT TOOL -->
+          <button id="tool-btn-sphere" class="tool-icon-btn" title="Marcador Esfera: Clic para activar (Alpha .50) y clic en el modelo (Alpha 1.0)">
+            <span class="tool-icon">📍</span>
+            <span class="tool-name">Marcador</span>
+            <span class="alpha-indicator" id="sphere-alpha-badge">OFF</span>
+          </button>
+
+          <!-- TEXT CARD TOOL -->
+          <button id="tool-btn-text" class="tool-icon-btn" title="Tarjeta de Texto: Cuadro arrastrable y redimensionable">
+            <span class="tool-icon">📝</span>
+            <span class="tool-name">Texto</span>
+          </button>
+
+          <!-- DELETE ARROWS -->
+          <button id="btn-clear-arrows" class="tool-icon-btn btn-subtle-danger" title="Borrar flechas de esta vista">
+            <span class="tool-icon">🗑️</span>
+            <span class="tool-name">Limpiar</span>
+          </button>
+        </div>
+
+        <div class="palette-divider"></div>
+
+        <!-- ORIENTATION & AUTO-CENTER -->
+        <div class="palette-section">
+          <span class="palette-label">Orientar</span>
+          
+          <button id="btn-palette-autocenter" class="tool-icon-btn tool-btn-accent" title="Auto-centra la pieza y ajusta el zoom">
+            <span class="tool-icon">🎯</span>
+            <span class="tool-name">Centrar</span>
+          </button>
+
+          <div class="rot-row">
+            <button id="btn-rot-x" class="rot-btn" title="Rotar +90° en X">X +90°</button>
+            <button id="btn-rot-y" class="rot-btn" title="Rotar +90° en Y">Y +90°</button>
+            <button id="btn-rot-z" class="rot-btn" title="Rotar +90° en Z">Z +90°</button>
+          </div>
+        </div>
+
+        <div class="palette-divider"></div>
+
+        <!-- MATERIAL PILLS -->
+        <div class="palette-section">
+          <span class="palette-label">Material</span>
+          <div class="mat-pills-col">
+            <button class="mat-pill active" data-mat="plain">Mate</button>
+            <button class="mat-pill" data-mat="wireframe">Malla</button>
+            <button class="mat-pill" data-mat="texture">Metálico</button>
+          </div>
+        </div>
+
+      </aside>
+    </div>
+
+    <!-- BOTTOM SLIDE TIMELINE & SAVE DOCK -->
+    <footer class="studio-timeline-dock">
+      
+      <!-- SLIDES TIMELINE CAROUSEL -->
+      <div class="timeline-slides" id="timeline-slides-container">
+        <!-- Rendered dynamically -->
+      </div>
+
+      <!-- SAVE SLIDE INPUTS -->
+      <div class="save-controls">
+        <input type="text" id="input-new-slide-title" placeholder="Nombre de este slide..." class="slide-name-input">
+        <button id="btn-save-current-slide" class="btn-store-slide">
+          <span>💾 Guardar Slide</span>
+        </button>
+      </div>
+
+    </footer>
+  </div>
+
+  <!-- ========================================================
+       STAGE 2: PRESENTATION PLAYBACK VIEW
+       ======================================================== -->
+  <div id="stage-presentation" class="stage-view hidden">
+    <div class="presentation-layout">
+      
+      <div class="presentation-header">
+        <div class="pres-title-box">
+          <label>Presentación:</label>
+          <select id="select-presentation-tour" class="studio-select"></select>
+        </div>
+        <div class="pres-step-pill" id="pres-step-indicator">Slide 1 de 3</div>
+      </div>
+
+      <div id="presentation-canvas-box" class="presentation-canvas"></div>
+
+      <div class="presentation-footer">
+        <button id="pres-prev" class="btn-pres-ctrl">◀ Anterior</button>
+        <div class="pres-slides-strip" id="pres-slides-strip"></div>
+        <button id="pres-next" class="btn-pres-ctrl">Siguiente ▶</button>
+      </div>
+
+      <!-- SLIDE CARD NOTES -->
+      <div class="pres-notes-card" id="pres-notes-card">
+        <h3 id="pres-slide-title">1. Vista General</h3>
+        <p id="pres-slide-notes">Cargando notas...</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================================
+       STAGE 3: 3D MODELS LIBRARY & UPLOAD
+       ======================================================== -->
+  <div id="stage-models" class="stage-view hidden">
+    <div class="models-manager-wrap">
+      <div class="manager-header">
+        <h2>Biblioteca de Archivos 3D</h2>
+        <p>Sube archivos STL o OBJ desde tu computadora para cargarlos en el editor.</p>
+      </div>
+
+      <div class="upload-dropzone">
+        <input type="file" id="model-file-upload-input" accept=".stl,.obj" class="hidden">
+        <div class="dropzone-box" id="dropzone-trigger">
+          <span class="dropzone-icon">📁</span>
+          <h3>Arrastra un archivo .STL o .OBJ aquí</h3>
+          <p>O haz clic para seleccionar desde tu disco local</p>
+        </div>
+      </div>
+
+      <div class="models-grid-section">
+        <h3>Modelos en Servidor</h3>
+        <div class="models-cards-grid" id="models-cards-grid"></div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

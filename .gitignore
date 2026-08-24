@@ -1,0 +1,9 @@
+node_modules/
+database.sqlite-wal
+database.sqlite-shm
+.tempmediaStorage/
+.system_generated/
+.DS_Store
+Thumbs.db
+repo_3d_obj_viewer_show/
+ghostppt.db

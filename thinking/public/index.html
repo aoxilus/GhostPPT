@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GhostPPT — Plataforma Interactiva de Tours 3D OBJ/STL</title>
+  <meta name="description" content="Plataforma de referencia 3D para profesores y estudiantes. Crea tours anotados en 3D con modelos OBJ y STL e interactúa en vivo.">
+  
+  <!-- CSS Stylesheet -->
+  <link rel="stylesheet" href="/css/style.css">
+
+  <!-- Three.js and Addons -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/OBJLoader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/STLLoader.js"></script>
+</head>
+<body>
+
+  <!-- Navigation Bar -->
+  <header class="navbar">
+    <div class="brand" onclick="exitViewer()">
+      <div class="brand-icon">👻</div>
+      <div>
+        <span>GhostPPT</span>
+        <span class="brand-tag">3D Reference</span>
+      </div>
+    </div>
+
+    <div class="nav-actions">
+      <button id="btn-new-pres" class="btn btn-primary" style="display:none;">
+        <span>➕</span> Nueva Presentación 3D
+      </button>
+
+      <div id="user-profile" class="user-badge" style="display:none;">
+        <span id="user-name">Usuario</span>
+        <span id="user-role" class="user-role-tag">Profesor</span>
+        <button id="btn-logout" class="btn btn-ghost" style="padding: 0.2rem 0.6rem; font-size: 0.8rem; margin-left: 0.3rem;">
+          Salir
+        </button>
+      </div>
+
+      <button id="btn-auth" class="btn btn-ghost">
+        <span>👤</span> Iniciar Sesión / Registro
+      </button>
+    </div>
+  </header>
+
+  <!-- Banner for picking 3D Hotspots on surface -->
+  <div id="hotspot-banner" class="hotspot-mode-banner">
+    🎯 Haz clic sobre la superficie del modelo 3D para fijar la anotación
+  </div>
+
+  <!-- Toast Container -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <!-- DASHBOARD VIEW -->
+  <main id="dashboard-view" class="main-container">
+    <div class="dashboard-header">
+      <div class="dashboard-title">
+        <h1>Exploración de Modelos 3D</h1>
+        <p>Selecciona un tour anatómico, mecánico o científico para iniciar la experiencia interactiva.</p>
+      </div>
+    </div>
+
+    <div id="cards-grid" class="cards-grid">
+      <!-- Dynamically filled with presentation cards -->
+    </div>
+  </main>
+
+  <!-- 3D VIEWER WORKSPACE -->
+  <div id="viewer-workspace" class="viewer-workspace">
+    <!-- WebGL Canvas Container -->
+    <div id="webgl-container">
+      <!-- HUD Top Bar -->
+      <div class="viewer-hud-top">
+        <div class="hud-title-badge">
+          <button id="btn-back-dashboard" class="btn btn-ghost" style="padding: 0.4rem 0.8rem; font-size:0.85rem;">
+            ⬅ Volver al Catálogo
+          </button>
+          <div>
+            <h2 id="hud-pres-title">Título del Modelo</h2>
+            <span style="font-size:0.75rem; color:var(--text-muted);">Profesor: <strong id="hud-author-name">Dr. Soto</strong></span>
+          </div>
+        </div>
+
+        <div class="hud-controls-right">
+          <button id="btn-add-slide" class="btn btn-accent" style="display:none;">
+            <span>📸</span> Guardar Vista & Diapositiva
+          </button>
+        </div>
+      </div>
+
+      <!-- Active Slide Floating HUD (Student / Explanatory card) -->
+      <div class="active-slide-hud">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.4rem;">
+          <span id="hud-step-counter" style="font-size:0.75rem; font-weight:700; color:var(--accent); text-transform:uppercase;">Paso 1 de 3</span>
+        </div>
+        <h4 id="hud-slide-title">Título del paso</h4>
+        <p id="hud-slide-desc">Descripción explicativa del paso anatómico o punto de interés.</p>
+      </div>
+
+      <!-- Bottom Floating Controls -->
+      <div class="viewer-bottom-bar">
+        <button id="btn-prev-slide" class="btn btn-ghost" style="padding:0.4rem 0.8rem;">
+          ◀ Anterior
+        </button>
+
+        <div id="step-dots" class="step-indicator-dots">
+          <!-- Dynamically populated step dots -->
+        </div>
+
+        <button id="btn-next-slide" class="btn btn-primary" style="padding:0.4rem 0.8rem;">
+          Siguiente ▶
+        </button>
+      </div>
+    </div>
+
+    <!-- Sidebar Tour Steps Drawer -->
+    <aside class="tour-sidebar">
+      <div class="sidebar-header">
+        <h3>📍 Recorrido y Anotaciones</h3>
+      </div>
+      <div id="tour-steps-list" class="tour-steps-list">
+        <!-- Step cards list -->
+      </div>
+    </aside>
+  </div>
+
+  <!-- ========================================================
+       MODALS
+       ======================================================== -->
+
+  <!-- Auth Modal (Login & Register) -->
+  <div id="modal-auth" class="modal-backdrop">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>Acceso a GhostPPT</h3>
+        <button class="modal-close">&times;</button>
+      </div>
+
+      <div style="display:flex; gap:0.5rem; margin-bottom:1.5rem; background:rgba(255,255,255,0.05); padding:4px; border-radius:var(--radius-md);">
+        <button class="btn tab-btn active" data-tab="login" style="flex:1; justify-content:center;">Iniciar Sesión</button>
+        <button class="btn tab-btn" data-tab="register" style="flex:1; justify-content:center;">Crear Cuenta</button>
+      </div>
+
+      <!-- Login Form -->
+      <form id="form-login">
+        <div class="form-group">
+          <label for="login-username">Usuario</label>
+          <input type="text" id="login-username" class="form-input" placeholder="ej. profesor" required>
+        </div>
+        <div class="form-group">
+          <label for="login-password">Contraseña</label>
+          <input type="password" id="login-password" class="form-input" placeholder="••••••••" required>
+        </div>
+        <button type="submit" class="btn btn-primary" style="width:100%; justify-content:center; margin-top:0.5rem;">
+          Ingresar
+        </button>
+        <p style="margin-top:1rem; font-size:0.8rem; color:var(--text-muted); text-align:center;">
+          💡 Usuarios de prueba: <strong>profesor / prof123</strong> o <strong>estudiante / student123</strong>
+        </p>
+      </form>
+
+      <!-- Register Form -->
+      <form id="form-register" style="display:none;">
+        <div class="form-group">
+          <label for="reg-fullname">Nombre Completo</label>
+          <input type="text" id="reg-fullname" class="form-input" placeholder="Dr. Alejandro Soto" required>
+        </div>
+        <div class="form-group">
+          <label for="reg-username">Nombre de Usuario</label>
+          <input type="text" id="reg-username" class="form-input" placeholder="asoto" required>
+        </div>
+        <div class="form-group">
+          <label for="reg-password">Contraseña</label>
+          <input type="password" id="reg-password" class="form-input" placeholder="••••••••" required>
+        </div>
+        <div class="form-group">
+          <label for="reg-role">Rol en la Plataforma</label>
+          <select id="reg-role" class="form-select">
+            <option value="professor">👨‍🏫 Profesor (Crea tours y sube modelos 3D)</option>
+            <option value="student">🎓 Estudiante (Exploración interactiva)</option>
+          </select>
+        </div>
+        <button type="submit" class="btn btn-primary" style="width:100%; justify-content:center; margin-top:0.5rem;">
+          Crear Cuenta
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- New Presentation Modal -->
+  <div id="modal-pres" class="modal-backdrop">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>Nueva Presentación 3D</h3>
+        <button class="modal-close">&times;</button>
+      </div>
+
+      <form id="form-new-pres">
+        <div class="form-group">
+          <label for="pres-title">Título de la Presentación</label>
+          <input type="text" name="title" id="pres-title" class="form-input" placeholder="ej. Anatomía del Ojo Humano" required>
+        </div>
+
+        <div class="form-group">
+          <label for="pres-desc">Descripción</label>
+          <textarea name="description" id="pres-desc" rows="3" class="form-textarea" placeholder="Breve introducción para los estudiantes..."></textarea>
+        </div>
+
+        <div class="form-group">
+          <label for="pres-category">Categoría / Materia</label>
+          <input type="text" name="category" id="pres-category" class="form-input" placeholder="ej. Biología Celular, Ingeniería Mecánica...">
+        </div>
+
+        <div class="form-group">
+          <label>Modelo 3D (.OBJ o .STL)</label>
+          <div class="file-dropzone" onclick="document.getElementById('modelFile').click()">
+            <input type="file" id="modelFile" name="modelFile" accept=".obj,.stl" style="display:none;" onchange="this.parentElement.querySelector('span').innerText = this.files[0] ? this.files[0].name : 'Haz clic para seleccionar archivo .OBJ o .STL'">
+            <div style="font-size: 2rem; margin-bottom:0.5rem;">📦</div>
+            <span>Haz clic para seleccionar archivo <strong>.OBJ</strong> o <strong>.STL</strong></span>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="defaultModelType">O usa un modelo base prediseñado:</label>
+          <select name="defaultModelType" id="defaultModelType" class="form-select">
+            <option value="">-- Cargar archivo propio --</option>
+            <option value="heart">🫀 Corazón Anatómico 3D (OBJ)</option>
+            <option value="stl">⚙️ Engranaje Mecánico de Precisión (STL)</option>
+          </select>
+        </div>
+
+        <div style="display:flex; justify-content:flex-end; gap:0.75rem; margin-top:1.5rem;">
+          <button type="button" class="btn btn-ghost btn-cancel">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Crear Presentación</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Add Slide & Hotspot Modal -->
+  <div id="modal-slide" class="modal-backdrop">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>Guardar Diapositiva & Marcador 3D</h3>
+        <button class="modal-close">&times;</button>
+      </div>
+
+      <form id="form-new-slide">
+        <div class="form-group">
+          <label for="slide-title">Título del Punto de Interés</label>
+          <input type="text" id="slide-title" class="form-input" placeholder="ej. Aurícula Izquierda y Válvula Mitral" required>
+        </div>
+
+        <div class="form-group">
+          <label for="slide-desc">Explicación para los Estudiantes</label>
+          <textarea id="slide-desc" rows="3" class="form-textarea" placeholder="Detalla las características anatómicas o mecánicas observadas en esta perspectiva..." required></textarea>
+        </div>
+
+        <div style="background:rgba(0,0,0,0.3); padding:1rem; border-radius:var(--radius-md); margin-bottom:1.25rem; border:1px solid var(--glass-border);">
+          <div style="font-size:0.85rem; color:var(--text-muted); margin-bottom:0.4rem;">
+            📸 <strong>Perspectiva de Cámara Capturada:</strong>
+          </div>
+          <code id="slide-cam-preview" style="font-family:'JetBrains Mono', monospace; font-size:0.8rem; color:var(--accent);">Cam [0, 4, 12]</code>
+        </div>
+
+        <div class="form-group">
+          <label>Marcador / Pin 3D en la Superficie</label>
+          <div style="display:flex; gap:0.5rem; align-items:center;">
+            <button type="button" id="btn-pick-hotspot" class="btn btn-ghost" style="flex:1;">
+              🎯 Seleccionar punto en el 3D
+            </button>
+          </div>
+          <div style="margin-top:0.5rem; font-size:0.8rem; color:var(--text-muted);">
+            Coordenadas: <span id="slide-hotspot-coords" style="color:var(--accent);">Ninguno (Opcional)</span>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="slide-hotspot-label">Etiqueta del Marcador (Tooltip)</label>
+          <input type="text" id="slide-hotspot-label" class="form-input" placeholder="ej. Válvula Mitral">
+        </div>
+
+        <div style="display:flex; justify-content:flex-end; gap:0.75rem; margin-top:1.5rem;">
+          <button type="button" class="btn btn-ghost btn-cancel">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Guardar Diapositiva</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Application Logic Scripts -->
+  <script src="/js/viewer3d.js"></script>
+  <script src="/js/app.js"></script>
+</body>
+</html>
