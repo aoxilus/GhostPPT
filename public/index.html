@@ -151,10 +151,14 @@
         <!-- Rendered dynamically -->
       </div>
 
-      <!-- SAVE SLIDE INPUTS -->
+      <!-- SAVE SLIDE & ELEMENT CONTINUITY CONTROLS -->
       <div class="save-controls">
+        <label class="chk-copy-wrap" title="Si está marcado, las flechas y textos actuales se copiarán al crear el siguiente slide">
+          <input type="checkbox" id="chk-copy-elements">
+          <span>Copiar elementos al siguiente</span>
+        </label>
         <input type="text" id="input-new-slide-title" placeholder="Nombre de este slide..." class="slide-name-input">
-        <button id="btn-save-current-slide" class="btn-store-slide">
+        <button id="btn-save-current-slide" class="btn-store-slide" title="Guarda la vista actual como un nuevo slide">
           <span>💾 Guardar Slide</span>
         </button>
       </div>

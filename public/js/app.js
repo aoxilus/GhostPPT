@@ -391,15 +391,47 @@ class StudioApp {
     container.innerHTML = '';
 
     this.currentSlides.forEach((s, idx) => {
-      const pill = document.createElement('button');
+      const pill = document.createElement('div');
       pill.className = `timeline-slide-pill ${idx === this.activeSlideIdx ? 'active' : ''}`;
-      pill.textContent = `${idx + 1}. ${s.title}`;
+      pill.title = 'Clic para ver este slide • Doble clic para cambiar nombre';
 
+      const titleSpan = document.createElement('span');
+      titleSpan.className = 'pill-title-text';
+      titleSpan.textContent = `${idx + 1}. ${s.title}`;
+      pill.appendChild(titleSpan);
+
+      // Delete button on hover
+      const delBtn = document.createElement('button');
+      delBtn.className = 'pill-delete-btn';
+      delBtn.innerHTML = '&times;';
+      delBtn.title = 'Eliminar este slide';
+      delBtn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        if (confirm(`¿Eliminar slide "${s.title}"?`)) {
+          try {
+            const res = await fetch(`/api/presentations/${this.currentTourId}/slides/${s.id}`, {
+              method: 'DELETE'
+            });
+            if (res.ok) {
+              this.currentSlides.splice(idx, 1);
+              this.activeSlideIdx = Math.max(0, idx - 1);
+              this.renderTimelineSlides();
+              this.showToast('🗑️ Slide eliminado');
+              await this.loadTours();
+            }
+          } catch (err) {
+            alert('Error al eliminar: ' + err.message);
+          }
+        }
+      });
+      pill.appendChild(delBtn);
+
+      // Single Click: Load that specific slide's exact elements
       pill.addEventListener('click', () => {
         this.activeSlideIdx = idx;
         document.querySelectorAll('.timeline-slide-pill').forEach((p, i) => p.classList.toggle('active', i === idx));
 
-        // Restore camera, rotation, material, arrows, and text card!
+        // Restore camera, rotation, material, arrows, and marker
         this.editorViewer.flyTo(
           { x: s.camera_x, y: s.camera_y, z: s.camera_z },
           { x: s.target_x || 0, y: s.target_y || 0, z: s.target_z || 0 },
@@ -418,13 +450,41 @@ class StudioApp {
           this.editorViewer.clearMarker();
         }
 
-        // Restore Text Card if present in description
+        // Restore Text Card if present in this slide
         const textCard = document.getElementById('text-card-overlay');
         const textInput = document.getElementById('text-annotation-content');
         if (s.description && s.description !== 'Vista guardada') {
           textInput.value = s.description;
           textCard.classList.remove('hidden');
           document.getElementById('tool-btn-text').classList.add('active');
+        } else {
+          textInput.value = '';
+          textCard.classList.add('hidden');
+          document.getElementById('tool-btn-text').classList.remove('active');
+        }
+      });
+
+      // Double Click: Rename slide title
+      pill.addEventListener('dblclick', async (e) => {
+        e.stopPropagation();
+        const newName = prompt('Editar nombre del slide:', s.title);
+        if (newName && newName.trim() && newName.trim() !== s.title) {
+          const updatedTitle = newName.trim();
+          try {
+            const res = await fetch(`/api/presentations/${this.currentTourId}/slides/${s.id}`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ title: updatedTitle })
+            });
+            if (res.ok) {
+              s.title = updatedTitle;
+              this.renderTimelineSlides();
+              this.showToast(`✏️ Slide renombrado a "${updatedTitle}"`);
+              await this.loadTours();
+            }
+          } catch (err) {
+            alert('Error al renombrar: ' + err.message);
+          }
         }
       });
 
@@ -483,9 +543,26 @@ class StudioApp {
       const data = await res.json();
       if (data.slide) {
         this.currentSlides.push(data.slide);
+        this.activeSlideIdx = this.currentSlides.length - 1;
         this.renderTimelineSlides();
         titleInput.value = '';
-        this.showToast('✅ Slide guardado en la base de datos');
+
+        const shouldCopy = document.getElementById('chk-copy-elements').checked;
+        if (!shouldCopy) {
+          // Clear annotations for clean new slide (keeping model position & cam intact)
+          this.editorViewer.deleteAllArrows();
+          this.editorViewer.clearMarker();
+          const textInput = document.getElementById('text-annotation-content');
+          if (textInput) textInput.value = '';
+          const textCard = document.getElementById('text-card-overlay');
+          if (textCard) textCard.classList.add('hidden');
+          document.getElementById('tool-btn-text').classList.remove('active');
+
+          this.showToast('✅ Nuevo Slide guardado. Listo para nuevas anotaciones.');
+        } else {
+          this.showToast('✅ Slide guardado (elementos copiados para el siguiente).');
+        }
+
         await this.loadTours();
       }
     } catch (err) {

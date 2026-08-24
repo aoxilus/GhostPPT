@@ -554,18 +554,23 @@ body.studio-theme {
   flex-shrink: 0;
   background: var(--bg-panel-elevated);
   border: 1px solid var(--border-subtle);
-  padding: 0.6rem 1.1rem;
+  padding: 0.55rem 0.95rem;
   border-radius: 8px;
   font-size: 0.9rem;
   font-weight: 600;
   color: var(--text-secondary);
   cursor: pointer;
   transition: all 0.15s ease;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  position: relative;
 }
 
 .timeline-slide-pill:hover {
   background: var(--bg-hover);
   color: var(--text-main);
+  border-color: var(--border-strong);
 }
 
 .timeline-slide-pill.active {
@@ -575,10 +580,46 @@ body.studio-theme {
   font-weight: 700;
 }
 
+.pill-delete-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
+  padding: 0 0.2rem;
+  border-radius: 3px;
+  transition: all 0.15s ease;
+}
+.pill-delete-btn:hover {
+  color: var(--red);
+  background: rgba(239, 68, 68, 0.15);
+}
+
 .save-controls {
   display: flex;
   align-items: center;
-  gap: 0.65rem;
+  gap: 0.75rem;
+}
+
+.chk-copy-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  cursor: pointer;
+  user-select: none;
+}
+.chk-copy-wrap input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--amber);
+  cursor: pointer;
+}
+.chk-copy-wrap:hover {
+  color: var(--text-main);
 }
 
 .slide-name-input {
@@ -589,7 +630,7 @@ body.studio-theme {
   border-radius: 8px;
   font-size: 0.92rem;
   outline: none;
-  width: 250px;
+  width: 220px;
 }
 .slide-name-input:focus {
   border-color: var(--amber);
