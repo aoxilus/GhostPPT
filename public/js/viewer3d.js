@@ -40,12 +40,87 @@ export class Viewer3D {
     // Active Tool Mode: 'none' | 'arrow' | 'sphere' | 'text'
     this.activeTool = 'none';
 
-    // Materials (Refined Finishes)
+    // Procedural Textures (Tanjiro Checkered Squares & Slate Rock)
+    const createTanjiroTexture = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = 128;
+      canvas.height = 128;
+      const ctx = canvas.getContext('2d');
+      const sz = 32;
+      for (let r = 0; r < 4; r++) {
+        for (let c = 0; c < 4; c++) {
+          ctx.fillStyle = (r + c) % 2 === 0 ? '#059669' : '#111827';
+          ctx.fillRect(c * sz, r * sz, sz, sz);
+        }
+      }
+      const tex = new THREE.CanvasTexture(canvas);
+      tex.wrapS = THREE.RepeatWrapping;
+      tex.wrapT = THREE.RepeatWrapping;
+      tex.repeat.set(6, 6);
+      return tex;
+    };
+
+    const createRockTexture = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = 256;
+      canvas.height = 256;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#64748b';
+      ctx.fillRect(0, 0, 256, 256);
+      for (let i = 0; i < 3000; i++) {
+        const x = Math.random() * 256;
+        const y = Math.random() * 256;
+        const r = Math.random() * 2.5 + 0.5;
+        const shade = Math.floor(Math.random() * 110) + 30;
+        ctx.fillStyle = `rgb(${shade},${shade + 4},${shade + 8})`;
+        ctx.fillRect(x, y, r, r);
+      }
+      const tex = new THREE.CanvasTexture(canvas);
+      tex.wrapS = THREE.RepeatWrapping;
+      tex.wrapT = THREE.RepeatWrapping;
+      tex.repeat.set(3, 3);
+      return tex;
+    };
+
+    // Materials (Mate, Metal, Tanjiro Squares, Rock Granite, Wireframe colors)
     this.materials = {
       plain: new THREE.MeshStandardMaterial({
         color: 0xc8ced6,
         roughness: 0.65,
         metalness: 0.15,
+        side: THREE.DoubleSide
+      }),
+      metal: new THREE.MeshStandardMaterial({
+        color: 0xe2e8f0,
+        metalness: 0.9,
+        roughness: 0.18,
+        side: THREE.DoubleSide
+      }),
+      squares: new THREE.MeshStandardMaterial({
+        map: createTanjiroTexture(),
+        roughness: 0.35,
+        metalness: 0.1,
+        side: THREE.DoubleSide
+      }),
+      rock: new THREE.MeshStandardMaterial({
+        map: createRockTexture(),
+        roughness: 0.85,
+        metalness: 0.05,
+        side: THREE.DoubleSide
+      }),
+      wireframe_blue: new THREE.MeshBasicMaterial({
+        color: 0x0284c7,
+        wireframe: true,
+        side: THREE.DoubleSide
+      }),
+      wireframe_white: new THREE.MeshBasicMaterial({
+        color: 0xffffff,
+        wireframe: true,
+        side: THREE.DoubleSide
+      }),
+      wireframe_black: new THREE.MeshBasicMaterial({
+        color: 0x111827,
+        wireframe: true,
         side: THREE.DoubleSide
       }),
       wireframe: new THREE.MeshBasicMaterial({
@@ -54,9 +129,9 @@ export class Viewer3D {
         side: THREE.DoubleSide
       }),
       texture: new THREE.MeshStandardMaterial({
-        color: 0x38bdf8,
-        metalness: 0.85,
-        roughness: 0.25,
+        map: createTanjiroTexture(),
+        roughness: 0.35,
+        metalness: 0.1,
         side: THREE.DoubleSide
       })
     };
@@ -492,6 +567,18 @@ export class Viewer3D {
   }
 
   // Theme Switching (Light Studio vs Dark Studio)
+  setMaterial(mode) {
+    this.currentViewMode = mode;
+    const mat = this.materials[mode] || this.materials.plain;
+    if (this.loadedObject) {
+      this.loadedObject.traverse((child) => {
+        if (child.isMesh) {
+          child.material = mat;
+        }
+      });
+    }
+  }
+
   setTheme(theme = 'light') {
     if (theme === 'light') {
       this.scene.background = new THREE.Color(0xedf2f7);

@@ -13,47 +13,60 @@
 </head>
 <body class="studio-theme" data-theme="light">
 
-  <!-- STUDIO TOP BAR -->
-  <header class="studio-topbar">
-    <div class="topbar-left">
-      <div class="brand">
-        <span class="brand-badge">3D</span>
-        <span class="brand-name">Ghost<strong>PPT</strong></span>
+  <!-- STUDIO TOP BAR (2 ROWS FOR OPTIMAL ERGONOMICS) -->
+  <header class="studio-topbar-2row">
+    
+    <!-- ROW 1: BRAND, WORKSPACE TABS & GLOBAL ACTIONS -->
+    <div class="topbar-row topbar-row-1">
+      <div class="topbar-left">
+        <div class="brand">
+          <span class="brand-badge">3D</span>
+          <span class="brand-name">Ghost<strong>PPT</strong></span>
+        </div>
+
+        <nav class="view-switch">
+          <button id="tab-btn-editor" class="view-tab active" data-tab="editor" data-i18n="tab_editor">Editor 3D</button>
+          <button id="tab-btn-presentation" class="view-tab" data-tab="presentation" data-i18n="tab_presentation">Presentación</button>
+          <button id="tab-btn-models" class="view-tab" data-tab="models" data-i18n="tab_models">Archivos 3D</button>
+        </nav>
       </div>
 
-      <!-- WORKSPACE TABS -->
-      <nav class="view-switch">
-        <button id="tab-btn-editor" class="view-tab active" data-tab="editor">Editor 3D</button>
-        <button id="tab-btn-presentation" class="view-tab" data-tab="presentation">Presentación</button>
-        <button id="tab-btn-models" class="view-tab" data-tab="models">Archivos 3D</button>
-      </nav>
-    </div>
-
-    <!-- MODEL & PRESENTATION TITLE SELECTOR IN TOP BAR -->
-    <div class="topbar-center">
-      <div class="pres-title-box-top">
-        <span class="pres-title-label">Presentación:</span>
-        <span class="pres-title-display" id="display-pres-title">Mi Presentación</span>
-        <button id="btn-rename-pres" class="btn-tiny btn-rename-icon" title="Cambiar nombre de la presentación">✏️</button>
-      </div>
-      <div class="divider-v"></div>
-      <div class="model-picker">
-        <label for="select-active-model">Modelo:</label>
-        <select id="select-active-model" class="studio-select">
-          <option value="">Cargando modelos...</option>
-        </select>
+      <div class="topbar-right">
+        <!-- DIRECT EN / ES TOGGLE BUTTON -->
+        <button id="btn-lang-toggle" class="btn-lang" title="Cambiar Idioma / Switch Language">
+          <span>🌐 <strong id="current-lang-text">ES</strong></span>
+        </button>
+        <div class="divider-v"></div>
+        <button id="btn-theme-toggle" class="btn-theme" title="Alternar Modo Claro / Oscuro">☀️ Claro</button>
+        <div class="divider-v"></div>
+        <button id="btn-share-pres" class="btn-topbar btn-share-accent" title="Generar enlace público y código QR para ver sin login" data-i18n="btn_share">🔗 Compartir / QR</button>
       </div>
     </div>
 
-    <div class="topbar-right">
-      <button id="btn-share-pres" class="btn-topbar btn-share-accent" title="Generar enlace público y código QR para ver sin login">🔗 Compartir / QR</button>
-      <div class="divider-v"></div>
-      <button id="btn-theme-toggle" class="btn-theme" title="Alternar Modo Claro / Oscuro">☀️ Claro</button>
-      <div class="divider-v"></div>
-      <button id="btn-quick-autocenter" class="btn-topbar" title="Auto-centrar modelo y ajustar cámara">🎯 Auto Center</button>
-      <div class="divider-v"></div>
-      <div class="cam-badge" id="hud-cam-display">CAM: X:0.0 Y:1.5 Z:7.5</div>
+    <!-- ROW 2: PRESENTATION TITLE, ACTIVE MODEL SELECTOR & 3D HUD -->
+    <div class="topbar-row topbar-row-2">
+      <div class="topbar-left">
+        <div class="pres-title-box-top">
+          <span class="pres-title-label" data-i18n="pres_label">Presentación:</span>
+          <span class="pres-title-display" id="display-pres-title">Mi Presentación</span>
+          <button id="btn-rename-pres" class="btn-tiny btn-rename-icon" title="Cambiar nombre de la presentación">✏️</button>
+        </div>
+        <div class="divider-v"></div>
+        <div class="model-picker">
+          <label for="select-active-model" data-i18n="model_label">Modelo:</label>
+          <select id="select-active-model" class="studio-select">
+            <option value="">Cargando modelos...</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="topbar-right">
+        <button id="btn-quick-autocenter" class="btn-topbar" title="Auto-centrar modelo y ajustar cámara" data-i18n="btn_autocenter">🎯 Auto Center</button>
+        <div class="divider-v"></div>
+        <div class="cam-badge" id="hud-cam-display">CAM: X:0.0 Y:1.5 Z:7.5</div>
+      </div>
     </div>
+
   </header>
 
   <!-- ========================================================
@@ -74,14 +87,14 @@
       <!-- DRAGGABLE & RESIZABLE TEXT ANNOTATION OVERLAY CARD -->
       <div id="text-card-overlay" class="text-card hidden">
         <div class="text-card-header" id="text-card-drag-handle">
-          <span class="text-card-title">📝 Anotación de Texto</span>
+          <span class="text-card-title" data-i18n="text_card_title">📝 Anotación de Texto</span>
           <div class="text-card-tools">
             <button id="btn-contrast-toggle" class="btn-tiny" title="Cambiar Contraste (Oscuro/Claro)">🌓</button>
             <button id="btn-close-text-card" class="btn-tiny btn-close-card" title="Eliminar anotación de texto">&times;</button>
           </div>
         </div>
         <div class="text-card-body">
-          <textarea id="text-annotation-content" placeholder="Escribe aquí tu explicación o título en grande..." rows="3"></textarea>
+          <textarea id="text-annotation-content" placeholder="Escribe aquí tu explicación o título..." rows="3"></textarea>
         </div>
         <div class="text-card-resize-handle"></div>
       </div>
@@ -91,32 +104,32 @@
         
         <!-- ANNOTATION TOOLS -->
         <div class="palette-section">
-          <span class="palette-label">Anotar</span>
+          <span class="palette-label" data-i18n="label_annotate">Anotar</span>
           
           <!-- ARROW TOOL (Alpha .50 on select -> .75 on hover -> 1.0 on draw) -->
           <button id="tool-btn-arrow" class="tool-icon-btn" title="Flecha 3D: 1er clic en pantalla (origen), 2do clic en el modelo (destino)">
             <span class="tool-icon">🏹</span>
-            <span class="tool-name">Flecha 3D</span>
+            <span class="tool-name" data-i18n="tool_arrow">Flecha 3D</span>
             <span class="alpha-indicator" id="arrow-alpha-badge">OFF</span>
           </button>
 
           <!-- SPHERE HOTSPOT TOOL -->
           <button id="tool-btn-sphere" class="tool-icon-btn" title="Marcador Esfera Translúcida: Clic sobre el modelo para colocarlo">
             <span class="tool-icon">📍</span>
-            <span class="tool-name">Marcador</span>
+            <span class="tool-name" data-i18n="tool_marker">Marcador</span>
             <span class="alpha-indicator" id="sphere-alpha-badge">OFF</span>
           </button>
 
           <!-- TEXT CARD TOOL -->
           <button id="tool-btn-text" class="tool-icon-btn" title="Tarjeta de Texto: Cuadro arrastrable y redimensionable">
             <span class="tool-icon">📝</span>
-            <span class="tool-name">Texto</span>
+            <span class="tool-name" data-i18n="tool_text">Texto</span>
           </button>
 
           <!-- CLEAN SLIDE (ARROWS, MARKER, TEXT) -->
-          <button id="btn-clear-arrows" class="tool-icon-btn btn-subtle-danger" title="Limpiar Slide: Borra flechas, marcadores y notas de texto manteniendo la posición de la pieza">
+          <button id="btn-clear-arrows" class="tool-icon-btn btn-subtle-danger" title="Limpiar Slide: Borra flechas, marcadores y notas manteniendo la posición de la pieza">
             <span class="tool-icon">🧹</span>
-            <span class="tool-name">Limpiar</span>
+            <span class="tool-name" data-i18n="tool_clean">Limpiar</span>
           </button>
         </div>
 
@@ -124,11 +137,11 @@
 
         <!-- ORIENTATION & AUTO-CENTER -->
         <div class="palette-section">
-          <span class="palette-label">Orientar</span>
+          <span class="palette-label" data-i18n="label_orient">Orientar</span>
           
           <button id="btn-palette-autocenter" class="tool-icon-btn tool-btn-accent" title="Auto-centra la pieza y ajusta el zoom">
             <span class="tool-icon">🎯</span>
-            <span class="tool-name">Centrar</span>
+            <span class="tool-name" data-i18n="btn_autocenter">Centrar</span>
           </button>
 
           <div class="rot-row">
@@ -140,39 +153,55 @@
 
         <div class="palette-divider"></div>
 
-        <!-- MATERIAL PILLS -->
+        <!-- MATERIAL PILLS (TANJIRO SQUARES, ROCK, METAL, MATE, WIREFRAME COLORS) -->
         <div class="palette-section">
-          <span class="palette-label">Material</span>
+          <span class="palette-label" data-i18n="label_material">Material</span>
           <div class="mat-pills-col">
-            <button class="mat-pill active" data-mat="plain">Mate</button>
-            <button class="mat-pill" data-mat="wireframe">Malla</button>
-            <button class="mat-pill" data-mat="texture">Metálico</button>
+            <button class="mat-pill active" data-mat="plain" data-i18n="mat_plain">Mate</button>
+            <button class="mat-pill" data-mat="metal" data-i18n="mat_metal">Metálico</button>
+            <button class="mat-pill" data-mat="squares" title="Estilo Cuadros Tanjiro (Verde y Negro)" data-i18n="mat_squares">🏁 Cuadros</button>
+            <button class="mat-pill" data-mat="rock" title="Textura de Roca / Granito" data-i18n="mat_rock">🪨 Roca</button>
+          </div>
+
+          <div class="wireframe-swatches-section">
+            <span class="wireframe-sublabel" data-i18n="label_mesh">Malla:</span>
+            <div class="wireframe-swatches-row">
+              <button class="swatch-btn swatch-white" data-mat="wireframe_white" title="Malla Blanca"></button>
+              <button class="swatch-btn swatch-blue" data-mat="wireframe_blue" title="Malla Azul"></button>
+              <button class="swatch-btn swatch-black" data-mat="wireframe_black" title="Malla Negra"></button>
+            </div>
           </div>
         </div>
 
       </aside>
     </div>
 
-    <!-- BOTTOM SLIDE TIMELINE & SAVE DOCK -->
+    <!-- BOTTOM SLIDE TIMELINE & SAVE DOCK WITH < > SCROLL ARROWS -->
     <footer class="studio-timeline-dock">
       
+      <!-- CAROUSEL ARROW < -->
+      <button id="btn-scroll-timeline-prev" class="timeline-nav-arrow" title="Desplazar slides a la izquierda">◀</button>
+
       <!-- SLIDES TIMELINE CAROUSEL -->
       <div class="timeline-slides" id="timeline-slides-container">
         <!-- Rendered dynamically -->
       </div>
 
+      <!-- CAROUSEL ARROW > -->
+      <button id="btn-scroll-timeline-next" class="timeline-nav-arrow" title="Desplazar slides a la derecha">▶</button>
+
       <!-- SAVE SLIDE & ELEMENT CONTINUITY CONTROLS -->
       <div class="save-controls">
         <label class="chk-copy-wrap" title="Si está marcado, las flechas y textos actuales se copiarán al crear el siguiente slide">
           <input type="checkbox" id="chk-copy-elements">
-          <span>Copiar elementos al siguiente</span>
+          <span data-i18n="copy_elements">Copiar elementos al siguiente</span>
         </label>
         <input type="text" id="input-new-slide-title" placeholder="Nombre de este slide..." class="slide-name-input">
         <button id="btn-save-current-slide" class="btn-store-slide" title="Guarda la vista actual como un nuevo slide">
-          <span>💾 Guardar Slide</span>
+          <span data-i18n="btn_save_slide">💾 Guardar Slide</span>
         </button>
         <button id="btn-delete-active-slide" class="btn-delete-slide-action" title="Eliminar el slide actualmente seleccionado">
-          <span>🗑️ Borrar Slide</span>
+          <span data-i18n="btn_del_slide">🗑️ Borrar Slide</span>
         </button>
       </div>
 
@@ -187,9 +216,9 @@
       
       <div class="presentation-header">
         <div class="pres-title-box">
-          <label>Presentación:</label>
+          <label data-i18n="pres_label">Presentación:</label>
           <select id="select-presentation-tour" class="studio-select"></select>
-          <button id="btn-share-pres-view" class="btn-topbar btn-share-accent" style="margin-left: 0.5rem;">🔗 Compartir / QR</button>
+          <button id="btn-share-pres-view" class="btn-topbar btn-share-accent" style="margin-left: 0.5rem;" data-i18n="btn_share">🔗 Compartir / QR</button>
         </div>
         <div class="pres-step-pill" id="pres-step-indicator">Slide 1 de 3</div>
       </div>
@@ -197,9 +226,9 @@
       <div id="presentation-canvas-box" class="presentation-canvas"></div>
 
       <div class="presentation-footer">
-        <button id="pres-prev" class="btn-pres-ctrl">◀ Anterior</button>
+        <button id="pres-prev" class="btn-pres-ctrl" data-i18n="btn_prev">◀ Anterior</button>
         <div class="pres-slides-strip" id="pres-slides-strip"></div>
-        <button id="pres-next" class="btn-pres-ctrl">Siguiente ▶</button>
+        <button id="pres-next" class="btn-pres-ctrl" data-i18n="btn_next">Siguiente ▶</button>
       </div>
 
       <!-- SLIDE CARD NOTES -->
@@ -216,21 +245,21 @@
   <div id="stage-models" class="stage-view hidden">
     <div class="models-manager-wrap">
       <div class="manager-header">
-        <h2>Biblioteca de Archivos 3D</h2>
-        <p>Sube archivos STL o OBJ desde tu computadora para cargarlos en el editor.</p>
+        <h2 data-i18n="models_title">Biblioteca de Archivos 3D</h2>
+        <p data-i18n="models_desc">Sube archivos STL o OBJ desde tu computadora para cargarlos en el editor.</p>
       </div>
 
       <div class="upload-dropzone">
         <input type="file" id="model-file-upload-input" accept=".stl,.obj" class="hidden">
         <div class="dropzone-box" id="dropzone-trigger">
           <span class="dropzone-icon">📁</span>
-          <h3>Arrastra un archivo .STL o .OBJ aquí</h3>
-          <p>O haz clic para seleccionar desde tu disco local</p>
+          <h3 data-i18n="dropzone_title">Arrastra un archivo .STL o .OBJ aquí</h3>
+          <p data-i18n="dropzone_sub">O haz clic para seleccionar desde tu disco local</p>
         </div>
       </div>
 
       <div class="models-grid-section">
-        <h3>Modelos en Servidor</h3>
+        <h3 data-i18n="server_models">Modelos en Servidor</h3>
         <div class="models-cards-grid" id="models-cards-grid"></div>
       </div>
     </div>
@@ -242,24 +271,24 @@
   <div id="modal-share-qr" class="modal-backdrop hidden">
     <div class="modal-dialog">
       <div class="modal-header">
-        <h3>🔗 Compartir Presentación 3D</h3>
+        <h3 data-i18n="share_modal_title">🔗 Compartir Presentación 3D</h3>
         <button id="btn-close-share-modal" class="btn-tiny btn-close-modal">&times;</button>
       </div>
       <div class="modal-body">
-        <p class="modal-desc">Cualquier persona puede ver esta presentación 3D en su celular, tablet o PC <strong>sin necesidad de iniciar sesión</strong>.</p>
+        <p class="modal-desc" data-i18n="share_modal_desc">Cualquier persona puede ver esta presentación 3D en su celular, tablet o PC <strong>sin necesidad de iniciar sesión</strong>.</p>
         
         <div class="qr-box">
           <div id="qrcode-container" class="qrcode-canvas-wrap"></div>
-          <span class="qr-hint">📲 Escanea el código QR con tu celular</span>
+          <span class="qr-hint" data-i18n="qr_hint">📲 Escanea el código QR con tu celular</span>
         </div>
 
         <div class="share-url-row">
           <input type="text" id="share-public-url" readonly class="share-url-input">
-          <button id="btn-copy-share-url" class="btn-copy-url">📋 Copiar Link</button>
+          <button id="btn-copy-share-url" class="btn-copy-url" data-i18n="btn_copy_link">📋 Copiar Link</button>
         </div>
 
         <div class="share-actions-row">
-          <a id="btn-open-public-tab" href="#" target="_blank" class="btn-open-public-link">👁️ Abrir Visor Público en pestaña nueva</a>
+          <a id="btn-open-public-tab" href="#" target="_blank" class="btn-open-public-link" data-i18n="open_public_tab">👁️ Abrir Visor Público en pestaña nueva</a>
         </div>
       </div>
     </div>

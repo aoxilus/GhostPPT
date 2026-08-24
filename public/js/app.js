@@ -23,6 +23,84 @@ class StudioApp {
     this.isDraggingCard = false;
     this.cardDragOffset = { x: 0, y: 0 };
     this.currentTheme = localStorage.getItem('ghostppt_theme') || 'light';
+    this.lang = localStorage.getItem('ghostppt_lang') || 'es';
+    this.i18n = {
+      es: {
+        tab_editor: "Editor 3D",
+        tab_presentation: "Presentación",
+        tab_models: "Archivos 3D",
+        btn_share: "🔗 Compartir / QR",
+        pres_label: "Presentación:",
+        model_label: "Modelo:",
+        btn_autocenter: "🎯 Auto Center",
+        text_card_title: "📝 Anotación de Texto",
+        label_annotate: "Anotar",
+        tool_arrow: "Flecha 3D",
+        tool_marker: "Marcador",
+        tool_text: "Texto",
+        tool_clean: "Limpiar",
+        label_orient: "Orientar",
+        label_material: "Material",
+        mat_plain: "Mate",
+        mat_metal: "Metálico",
+        mat_squares: "🏁 Cuadros",
+        mat_rock: "🪨 Roca",
+        label_mesh: "Malla:",
+        copy_elements: "Copiar elementos al siguiente",
+        btn_save_slide: "💾 Guardar Slide",
+        btn_del_slide: "🗑️ Borrar Slide",
+        btn_prev: "◀ Anterior",
+        btn_next: "Siguiente ▶",
+        models_title: "Biblioteca de Archivos 3D",
+        models_desc: "Sube archivos STL o OBJ desde tu computadora para cargarlos en el editor.",
+        dropzone_title: "Arrastra un archivo .STL o .OBJ aquí",
+        dropzone_sub: "O haz clic para seleccionar desde tu disco local",
+        server_models: "Modelos en Servidor",
+        share_modal_title: "🔗 Compartir Presentación 3D",
+        share_modal_desc: "Cualquier persona puede ver esta presentación 3D en su celular, tablet o PC sin necesidad de iniciar sesión.",
+        qr_hint: "📲 Escanea el código QR con tu celular",
+        btn_copy_link: "📋 Copiar Link",
+        open_public_tab: "👁️ Abrir Visor Público en pestaña nueva"
+      },
+      en: {
+        tab_editor: "3D Editor",
+        tab_presentation: "Presentation",
+        tab_models: "3D Files",
+        btn_share: "🔗 Share / QR",
+        pres_label: "Presentation:",
+        model_label: "Model:",
+        btn_autocenter: "🎯 Auto Center",
+        text_card_title: "📝 Text Annotation",
+        label_annotate: "Annotate",
+        tool_arrow: "3D Arrow",
+        tool_marker: "Marker",
+        tool_text: "Text",
+        tool_clean: "Clean",
+        label_orient: "Orient",
+        label_material: "Material",
+        mat_plain: "Matte",
+        mat_metal: "Metallic",
+        mat_squares: "🏁 Squares",
+        mat_rock: "🪨 Rock",
+        label_mesh: "Mesh:",
+        copy_elements: "Copy elements to next",
+        btn_save_slide: "💾 Save Slide",
+        btn_del_slide: "🗑️ Delete Slide",
+        btn_prev: "◀ Previous",
+        btn_next: "Next ▶",
+        models_title: "3D File Library",
+        models_desc: "Upload STL or OBJ files from your computer to load them into the editor.",
+        dropzone_title: "Drag an .STL or .OBJ file here",
+        dropzone_sub: "Or click to select from your local drive",
+        server_models: "Server Models",
+        share_modal_title: "🔗 Share 3D Presentation",
+        share_modal_desc: "Anyone can view this 3D presentation on their phone, tablet, or PC without needing to log in.",
+        qr_hint: "📲 Scan the QR code with your phone",
+        btn_copy_link: "📋 Copy Link",
+        open_public_tab: "👁️ Open Public Viewer in new tab"
+      }
+    };
+
     this.init();
   }
 
@@ -33,8 +111,9 @@ class StudioApp {
       onToolStateChange: (state, msg) => this.onToolStateUpdate(state, msg)
     });
 
-    // Apply active theme (Light by default)
+    // Apply active theme & language
     this.applyTheme(this.currentTheme);
+    this.applyLanguage();
 
     // 2. Setup Events
     this.bindEvents();
@@ -66,10 +145,42 @@ class StudioApp {
     if (this.presViewer) this.presViewer.setTheme(theme);
   }
 
+  applyLanguage() {
+    const dict = this.i18n[this.lang] || this.i18n.es;
+    document.getElementById('current-lang-text').textContent = this.lang.toUpperCase();
+
+    document.querySelectorAll('[data-i18n]').forEach(el => {
+      const key = el.dataset.i18n;
+      if (dict[key]) {
+        el.textContent = dict[key];
+      }
+    });
+
+    // Update text placeholders
+    const textInput = document.getElementById('text-annotation-content');
+    if (textInput) {
+      textInput.placeholder = this.lang === 'es' 
+        ? 'Escribe aquí tu explicación o título...' 
+        : 'Write your explanation or note here...';
+    }
+    const slideInput = document.getElementById('input-new-slide-title');
+    if (slideInput) {
+      slideInput.placeholder = this.lang === 'es' ? 'Nombre de este slide...' : 'Name for this slide...';
+    }
+  }
+
   // ----------------------------------------------------
   // DOM EVENTS & TOOL PALETTE BINDINGS
   // ----------------------------------------------------
   bindEvents() {
+    // Language Toggle Button (EN / ES)
+    document.getElementById('btn-lang-toggle').addEventListener('click', () => {
+      this.lang = this.lang === 'es' ? 'en' : 'es';
+      localStorage.setItem('ghostppt_lang', this.lang);
+      this.applyLanguage();
+      this.showToast(this.lang === 'es' ? '🌐 Idioma: Español' : '🌐 Language: English');
+    });
+
     // Theme Toggle Button
     const themeBtn = document.getElementById('btn-theme-toggle');
     if (themeBtn) {
@@ -95,11 +206,11 @@ class StudioApp {
     // Quick Auto Center Topbar Button & Palette Button
     document.getElementById('btn-quick-autocenter').addEventListener('click', () => {
       this.editorViewer.autoCenterPieceAndCamera();
-      this.showToast('🎯 Pieza auto-centrada y cámara encuadrada');
+      this.showToast(this.lang === 'es' ? '🎯 Pieza auto-centrada y cámara encuadrada' : '🎯 Piece auto-centered and camera framed');
     });
     document.getElementById('btn-palette-autocenter').addEventListener('click', () => {
       this.editorViewer.autoCenterPieceAndCamera();
-      this.showToast('🎯 Pieza auto-centrada y cámara encuadrada');
+      this.showToast(this.lang === 'es' ? '🎯 Pieza auto-centrada y cámara encuadrada' : '🎯 Piece auto-centered and camera framed');
     });
 
     // 90° Axis Rotations
@@ -113,14 +224,29 @@ class StudioApp {
       this.editorViewer.rotateObjectZ(90);
     });
 
-    // Materials Pills
-    document.querySelectorAll('.mat-pill').forEach(btn => {
+    // Materials Pills and Wireframe Swatches
+    document.querySelectorAll('.mat-pill, .swatch-btn').forEach(btn => {
       btn.addEventListener('click', () => {
-        document.querySelectorAll('.mat-pill').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.mat-pill, .swatch-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         this.editorViewer.setMaterial(btn.dataset.mat);
       });
     });
+
+    // Timeline < and > Carousel Scroll Arrows
+    const timelineContainer = document.getElementById('timeline-slides-container');
+    const scrollPrev = document.getElementById('btn-scroll-timeline-prev');
+    const scrollNext = document.getElementById('btn-scroll-timeline-next');
+    if (scrollPrev && timelineContainer) {
+      scrollPrev.addEventListener('click', () => {
+        timelineContainer.scrollBy({ left: -240, behavior: 'smooth' });
+      });
+    }
+    if (scrollNext && timelineContainer) {
+      scrollNext.addEventListener('click', () => {
+        timelineContainer.scrollBy({ left: 240, behavior: 'smooth' });
+      });
+    }
 
     // 3D Arrow Tool (Skeuomorphic Alpha State: OFF -> 50% -> 75% -> 100%)
     const arrowBtn = document.getElementById('tool-btn-arrow');
