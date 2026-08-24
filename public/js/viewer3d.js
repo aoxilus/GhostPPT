@@ -591,9 +591,28 @@ export class Viewer3D {
     this.markerPosition = null;
   }
 
-  // Material Switching
+  // Metallic Color Customization
+  setMetallicColor(hexColor) {
+    this.currentMetallicColor = hexColor;
+    if (this.materials.metal) {
+      this.materials.metal.color.set(hexColor);
+      this.materials.metal.needsUpdate = true;
+    }
+    this.setMaterial('metal');
+  }
+
   // Material Switching (Mate, Metal, Tanjiro Squares, Rock Granite, Wireframe colors)
   setMaterial(mode) {
+    if (mode && mode.startsWith('metal:')) {
+      const color = mode.split(':')[1];
+      if (color) {
+        this.currentMetallicColor = color;
+        if (this.materials.metal) {
+          this.materials.metal.color.set(color);
+        }
+      }
+      mode = 'metal';
+    }
     this.currentViewMode = mode;
     const mat = this.materials[mode] || this.materials.plain;
     if (this.loadedObject) {

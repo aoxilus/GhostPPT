@@ -45,6 +45,7 @@ class StudioApp {
         mat_metal: "Metálico",
         mat_squares: "🏁 Cuadros",
         mat_rock: "🪨 Roca",
+        label_metal_color: "Tono Metálico:",
         label_mesh: "Malla:",
         copy_elements: "Copiar elementos al siguiente",
         btn_save_slide: "💾 Guardar Slide",
@@ -82,6 +83,7 @@ class StudioApp {
         mat_metal: "Metallic",
         mat_squares: "🏁 Squares",
         mat_rock: "🪨 Rock",
+        label_metal_color: "Metallic Color:",
         label_mesh: "Mesh:",
         copy_elements: "Copy elements to next",
         btn_save_slide: "💾 Save Slide",
@@ -224,14 +226,47 @@ class StudioApp {
       this.editorViewer.rotateObjectZ(90);
     });
 
-    // Materials Pills and Wireframe Swatches
-    document.querySelectorAll('.mat-pill, .swatch-btn').forEach(btn => {
+    // Materials Pills
+    document.querySelectorAll('.mat-pill').forEach(btn => {
       btn.addEventListener('click', () => {
-        document.querySelectorAll('.mat-pill, .swatch-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.mat-pill').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         this.editorViewer.setMaterial(btn.dataset.mat);
       });
     });
+
+    // Wireframe Color Swatches
+    document.querySelectorAll('.wireframe-swatches-row .swatch-btn[data-mat]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.wireframe-swatches-row .swatch-btn[data-mat]').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        this.editorViewer.setMaterial(btn.dataset.mat);
+      });
+    });
+
+    // Metallic Color Swatches (Bluish Titanium, Silver Chrome, Gold Brass, Copper Rose Gold)
+    document.querySelectorAll('.metal-swatches-section .swatch-btn[data-metal-color]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.metal-swatches-section .swatch-btn[data-metal-color]').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        document.querySelectorAll('.mat-pill').forEach(b => b.classList.remove('active'));
+        document.querySelector('.mat-pill[data-mat="metal"]')?.classList.add('active');
+
+        this.editorViewer.setMetallicColor(btn.dataset.metalColor);
+      });
+    });
+
+    // Custom Metallic Color Picker
+    const customMetalPicker = document.getElementById('metal-custom-color-picker');
+    if (customMetalPicker) {
+      customMetalPicker.addEventListener('input', (e) => {
+        document.querySelectorAll('.metal-swatches-section .swatch-btn[data-metal-color]').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.mat-pill').forEach(b => b.classList.remove('active'));
+        document.querySelector('.mat-pill[data-mat="metal"]')?.classList.add('active');
+
+        this.editorViewer.setMetallicColor(e.target.value);
+      });
+    }
 
     // Timeline < and > Carousel Navigation Arrows
     const scrollPrev = document.getElementById('btn-scroll-timeline-prev');
@@ -730,10 +765,24 @@ class StudioApp {
       { x: s.rot_x || 0, y: s.rot_y || 0, z: s.rot_z || 0 }
     );
 
-    this.editorViewer.setMaterial(s.view_mode || 'plain');
-    document.querySelectorAll('.mat-pill, .swatch-btn').forEach(b => {
-      b.classList.toggle('active', b.dataset.mat === (s.view_mode || 'plain'));
+    const mode = s.view_mode || 'plain';
+    this.editorViewer.setMaterial(mode);
+    const modeKey = mode.split(':')[0];
+    document.querySelectorAll('.mat-pill').forEach(b => {
+      b.classList.toggle('active', b.dataset.mat === modeKey);
     });
+    if (mode.startsWith('metal:')) {
+      const col = mode.split(':')[1];
+      document.querySelectorAll('.metal-swatches-section .swatch-btn[data-metal-color]').forEach(b => {
+        b.classList.toggle('active', b.dataset.metalColor.toLowerCase() === col.toLowerCase());
+      });
+      const picker = document.getElementById('metal-custom-color-picker');
+      if (picker && col.startsWith('#')) picker.value = col;
+    } else {
+      document.querySelectorAll('.wireframe-swatches-row .swatch-btn[data-mat]').forEach(b => {
+        b.classList.toggle('active', b.dataset.mat === mode);
+      });
+    }
 
     this.editorViewer.setArrows(s.arrows || []);
     if (s.marker_x !== null && s.marker_x !== undefined) {
@@ -779,6 +828,11 @@ class StudioApp {
     }
 
     const camState = this.editorViewer.getCameraState();
+    let currentMode = this.editorViewer.currentViewMode || 'plain';
+    if (currentMode === 'metal' && this.editorViewer.currentMetallicColor) {
+      currentMode = `metal:${this.editorViewer.currentMetallicColor}`;
+    }
+
     const payload = {
       title,
       description,
@@ -791,7 +845,7 @@ class StudioApp {
       marker_x: this.editorViewer.markerPosition ? this.editorViewer.markerPosition.x : null,
       marker_y: this.editorViewer.markerPosition ? this.editorViewer.markerPosition.y : null,
       marker_z: this.editorViewer.markerPosition ? this.editorViewer.markerPosition.z : null,
-      view_mode: this.editorViewer.currentViewMode,
+      view_mode: currentMode,
       arrows: this.editorViewer.arrowPositions,
       rot_x: camState.rotation.x,
       rot_y: camState.rotation.y,

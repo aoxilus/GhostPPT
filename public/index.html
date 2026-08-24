@@ -163,6 +163,21 @@
             <button class="mat-pill" data-mat="rock" title="Textura de Roca / Granito" data-i18n="mat_rock">🪨 Roca</button>
           </div>
 
+          <!-- METALLIC COLOR SELECTOR (1 or 2 Colors & Custom Picker) -->
+          <div class="metal-swatches-section" id="section-metal-colors">
+            <span class="wireframe-sublabel" data-i18n="label_metal_color">Tono Metálico:</span>
+            <div class="wireframe-swatches-row">
+              <button class="swatch-btn swatch-metal-blue active" data-metal-color="#93c5fd" title="Titanio Azulado (Plateado Azul)"></button>
+              <button class="swatch-btn swatch-metal-silver" data-metal-color="#e2e8f0" title="Plata / Cromo Puro"></button>
+              <button class="swatch-btn swatch-metal-gold" data-metal-color="#fbbf24" title="Oro / Latón"></button>
+              <button class="swatch-btn swatch-metal-copper" data-metal-color="#f87171" title="Cobre / Oro Rosa"></button>
+              <label class="swatch-picker-label" title="Seleccionar Color Metálico Personalizado">
+                <input type="color" id="metal-custom-color-picker" value="#93c5fd" class="swatch-color-input">
+                <span class="picker-glyph">🎨</span>
+              </label>
+            </div>
+          </div>
+
           <div class="wireframe-swatches-section">
             <span class="wireframe-sublabel" data-i18n="label_mesh">Malla:</span>
             <div class="wireframe-swatches-row">
