@@ -170,10 +170,27 @@ class StudioApp {
       card.classList.toggle('light-mode');
     });
 
-    // Clear Arrows
+    // Clean Slide (Deletes all annotations, arrows, markers, and text notes without moving the model)
     document.getElementById('btn-clear-arrows').addEventListener('click', () => {
       this.editorViewer.deleteAllArrows();
-      this.showToast('Flechas eliminadas de esta vista');
+      this.editorViewer.clearMarker();
+      this.editorViewer.setActiveTool('none');
+
+      document.getElementById('tool-btn-arrow').classList.remove('active');
+      document.getElementById('arrow-alpha-badge').textContent = 'OFF';
+      document.getElementById('tool-btn-sphere').classList.remove('active');
+      document.getElementById('sphere-alpha-badge').textContent = 'OFF';
+
+      const textInput = document.getElementById('text-annotation-content');
+      if (textInput) textInput.value = '';
+      const textCard = document.getElementById('text-card-overlay');
+      if (textCard) textCard.classList.add('hidden');
+      document.getElementById('tool-btn-text').classList.remove('active');
+
+      const titleInput = document.getElementById('input-new-slide-title');
+      if (titleInput) titleInput.value = '';
+
+      this.showToast('🧹 Slide limpiado (flechas, marcadores y notas eliminados)');
     });
 
     // Save Slide
