@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GhostPPT 3D — Visor Público</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    body.public-viewer {
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      background-color: var(--bg-app);
+      color: var(--text-main);
+    }
+    .public-topbar {
+      height: 56px;
+      background: var(--bg-panel);
+      border-bottom: 1px solid var(--border-subtle);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 1.5rem;
+      z-index: 100;
+    }
+    .public-viewport {
+      flex: 1;
+      width: 100%;
+      height: 100%;
+      position: relative;
+    }
+    .public-footer {
+      height: 72px;
+      background: var(--bg-panel);
+      border-top: 1px solid var(--border-subtle);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 1.5rem;
+      gap: 1rem;
+      z-index: 40;
+    }
+    .public-notes-overlay {
+      position: absolute;
+      bottom: 86px;
+      left: 1.5rem;
+      background: var(--bg-panel);
+      border: 1px solid var(--border-subtle);
+      border-radius: 12px;
+      padding: 1rem 1.5rem;
+      max-width: 500px;
+      box-shadow: var(--shadow-card);
+      z-index: 50;
+      backdrop-filter: blur(16px);
+    }
+  </style>
+</head>
+<body class="studio-theme public-viewer" data-theme="light">
+
+  <!-- PUBLIC HEADER -->
+  <header class="public-topbar">
+    <div class="topbar-left">
+      <div class="brand">
+        <span class="brand-badge">3D</span>
+        <span class="brand-name">Ghost<strong>PPT</strong></span>
+      </div>
+      <h2 id="public-pres-title" style="font-size: 1.1rem; font-weight: 700; margin-left: 1rem;">Cargando presentación...</h2>
+    </div>
+    <div class="topbar-right">
+      <button id="btn-public-theme" class="btn-theme">☀️ Claro</button>
+      <div class="pres-step-pill" id="public-step-pill">Slide 1 de 1</div>
+    </div>
+  </header>
+
+  <!-- 3D VIEWPORT -->
+  <div class="public-viewport">
+    <div id="public-canvas-container" class="canvas-3d"></div>
+
+    <!-- NOTES CARD OVERLAY -->
+    <div class="public-notes-overlay" id="public-notes-box">
+      <h3 id="public-slide-title" style="font-size: 1.15rem; font-weight: 700; margin-bottom: 0.35rem;">1. Vista Inicial</h3>
+      <p id="public-slide-description" style="font-size: 0.95rem; color: var(--text-secondary); line-height: 1.45;">Cargando notas de la diapositiva...</p>
+    </div>
+  </div>
+
+  <!-- PUBLIC FOOTER CONTROLS -->
+  <footer class="public-footer">
+    <button id="btn-public-prev" class="btn-pres-ctrl">◀ Anterior</button>
+    <div class="timeline-slides" id="public-slides-strip"></div>
+    <button id="btn-public-next" class="btn-pres-ctrl">Siguiente ▶</button>
+  </footer>
+
+  <script type="module" src="js/public-viewer.js"></script>
+</body>
+</html>

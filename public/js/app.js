@@ -198,6 +198,118 @@ class StudioApp {
       this.handleSaveSlide();
     });
 
+    // Delete Active Slide Button
+    document.getElementById('btn-delete-active-slide').addEventListener('click', async () => {
+      if (!this.currentSlides || this.currentSlides.length === 0) {
+        this.showToast('No hay slides en esta presentación');
+        return;
+      }
+      const activeSlide = this.currentSlides[this.activeSlideIdx];
+      if (!activeSlide) return;
+
+      if (confirm(`¿Eliminar slide "${activeSlide.title}"?`)) {
+        try {
+          const res = await fetch(`/api/presentations/${this.currentTourId}/slides/${activeSlide.id}`, {
+            method: 'DELETE'
+          });
+          if (res.ok) {
+            this.currentSlides.splice(this.activeSlideIdx, 1);
+            this.activeSlideIdx = Math.max(0, this.activeSlideIdx - 1);
+            this.renderTimelineSlides();
+            this.showToast('🗑️ Slide eliminado');
+            await this.loadTours();
+          }
+        } catch (err) {
+          alert('Error al eliminar slide: ' + err.message);
+        }
+      }
+    });
+
+    // Rename Presentation Title
+    document.getElementById('btn-rename-pres').addEventListener('click', async () => {
+      if (!this.currentTourId) {
+        const title = prompt('Nombre para la nueva presentación:', `Presentación de ${this.currentModel}`);
+        if (title && title.trim()) {
+          const res = await fetch('/api/presentations', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title: title.trim(), existing_filename: this.currentModel })
+          });
+          const data = await res.json();
+          this.currentTourId = data.id;
+          await this.loadTours();
+          document.getElementById('display-pres-title').textContent = title.trim();
+          this.showToast(`✏️ Presentación creada: "${title.trim()}"`);
+        }
+        return;
+      }
+
+      const currentTitle = document.getElementById('display-pres-title').textContent;
+      const newTitle = prompt('Editar nombre de la presentación:', currentTitle);
+      if (newTitle && newTitle.trim() && newTitle.trim() !== currentTitle) {
+        const updatedTitle = newTitle.trim();
+        try {
+          const res = await fetch(`/api/presentations/${this.currentTourId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title: updatedTitle })
+          });
+          if (res.ok) {
+            document.getElementById('display-pres-title').textContent = updatedTitle;
+            await this.loadTours();
+            this.showToast(`✏️ Presentación renombrada a "${updatedTitle}"`);
+          }
+        } catch (err) {
+          alert('Error al renombrar: ' + err.message);
+        }
+      }
+    });
+
+    // Share & Public QR Code Modal
+    const openShareModal = () => {
+      if (!this.currentTourId) {
+        this.showToast('⚠️ Guarda un slide primero para compartir esta presentación');
+        return;
+      }
+      const publicUrl = `${window.location.origin}/view.html?id=${this.currentTourId}`;
+      document.getElementById('share-public-url').value = publicUrl;
+      document.getElementById('btn-open-public-tab').href = publicUrl;
+
+      const qrContainer = document.getElementById('qrcode-container');
+      qrContainer.innerHTML = '';
+      if (window.QRCode) {
+        new QRCode(qrContainer, {
+          text: publicUrl,
+          width: 170,
+          height: 170,
+          colorDark: '#0f172a',
+          colorLight: '#ffffff',
+          correctLevel: QRCode.CorrectLevel.M
+        });
+      }
+      document.getElementById('modal-share-qr').classList.remove('hidden');
+    };
+
+    document.getElementById('btn-share-pres').addEventListener('click', openShareModal);
+    const shareViewBtn = document.getElementById('btn-share-pres-view');
+    if (shareViewBtn) shareViewBtn.addEventListener('click', openShareModal);
+
+    document.getElementById('btn-close-share-modal').addEventListener('click', () => {
+      document.getElementById('modal-share-qr').classList.add('hidden');
+    });
+
+    document.getElementById('btn-copy-share-url').addEventListener('click', async () => {
+      const input = document.getElementById('share-public-url');
+      try {
+        await navigator.clipboard.writeText(input.value);
+        this.showToast('📋 ¡Enlace público copiado al portapapeles!');
+      } catch (err) {
+        input.select();
+        document.execCommand('copy');
+        this.showToast('📋 ¡Enlace público copiado!');
+      }
+    });
+
     // Presentation Switch & Navigation
     const presSelect = document.getElementById('select-presentation-tour');
     presSelect.addEventListener('change', (e) => {
@@ -376,11 +488,14 @@ class StudioApp {
     if (!tour && this.tours.length > 0) tour = this.tours[0];
     this.currentTourId = tour ? tour.id : null;
 
+    const titleEl = document.getElementById('display-pres-title');
     if (tour) {
+      if (titleEl) titleEl.textContent = tour.title;
       const res = await fetch(`/api/presentations/${tour.id}`);
       const data = await res.json();
       this.currentSlides = data.slides || [];
     } else {
+      if (titleEl) titleEl.textContent = `Presentación de ${filename}`;
       this.currentSlides = [];
     }
     this.renderTimelineSlides();

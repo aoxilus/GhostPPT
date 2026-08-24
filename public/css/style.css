@@ -846,3 +846,201 @@ body.studio-theme {
 .hidden {
   display: none !important;
 }
+
+/* ========================================================
+   9. PRESENTATION TITLE, SHARE BUTTON, DELETE SLIDE & QR MODAL
+   ======================================================== */
+.pres-title-box-top {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.92rem;
+  color: var(--text-secondary);
+}
+
+.pres-title-display {
+  font-weight: 700;
+  color: var(--text-main);
+  max-width: 170px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.btn-rename-icon {
+  font-size: 0.95rem;
+  cursor: pointer;
+  padding: 0.1rem 0.3rem;
+  border-radius: 4px;
+}
+.btn-rename-icon:hover {
+  background: var(--bg-hover);
+}
+
+.btn-share-accent {
+  background: rgba(245, 158, 11, 0.15) !important;
+  color: var(--amber) !important;
+  border-color: var(--amber) !important;
+  font-weight: 700 !important;
+}
+.btn-share-accent:hover {
+  background: var(--amber) !important;
+  color: #000000 !important;
+}
+
+.btn-delete-slide-action {
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  color: var(--red);
+  font-weight: 600;
+  font-size: 0.88rem;
+  padding: 0.55rem 0.95rem;
+  border-radius: 8px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+.btn-delete-slide-action:hover {
+  background: var(--red);
+  color: #ffffff;
+  border-color: var(--red);
+}
+
+/* Modal Dialog */
+.modal-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.modal-dialog {
+  background: var(--bg-panel);
+  border: 1px solid var(--border-subtle);
+  border-radius: 16px;
+  width: min(480px, 92vw);
+  box-shadow: 0 20px 48px rgba(0,0,0,0.5);
+  overflow: hidden;
+  animation: modalIn 0.2s ease;
+}
+
+@keyframes modalIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.modal-header {
+  padding: 1rem 1.25rem;
+  background: var(--bg-panel-elevated);
+  border-bottom: 1px solid var(--border-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.modal-header h3 {
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.btn-close-modal {
+  font-size: 1.4rem;
+  cursor: pointer;
+}
+
+.modal-body {
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.25rem;
+  text-align: center;
+}
+
+.modal-desc {
+  font-size: 0.92rem;
+  color: var(--text-secondary);
+  line-height: 1.45;
+}
+
+.qr-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.65rem;
+  background: #ffffff;
+  padding: 1.25rem;
+  border-radius: 12px;
+  border: 1px solid #cbd5e1;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+}
+
+.qrcode-canvas-wrap {
+  width: 180px;
+  height: 180px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.qrcode-canvas-wrap img,
+.qrcode-canvas-wrap canvas {
+  display: block;
+  margin: 0 auto;
+}
+
+.qr-hint {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #475569;
+}
+
+.share-url-row {
+  display: flex;
+  width: 100%;
+  gap: 0.5rem;
+}
+
+.share-url-input {
+  flex: 1;
+  background: var(--bg-panel-elevated);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-main);
+  padding: 0.55rem 0.85rem;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-family: 'JetBrains Mono', monospace;
+  outline: none;
+}
+
+.btn-copy-url {
+  background: var(--amber);
+  color: #000;
+  font-weight: 700;
+  border: none;
+  padding: 0.55rem 1rem;
+  border-radius: 8px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.btn-copy-url:hover {
+  background: #eab308;
+}
+
+.btn-open-public-link {
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: var(--border-active);
+  text-decoration: none;
+}
+.btn-open-public-link:hover {
+  text-decoration: underline;
+}

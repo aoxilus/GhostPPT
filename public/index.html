@@ -8,6 +8,8 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/style.css">
+  <!-- Standalone QR Code Generator -->
+  <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
 </head>
 <body class="studio-theme" data-theme="light">
 
@@ -27,8 +29,14 @@
       </nav>
     </div>
 
-    <!-- MODEL SELECTOR IN TOP BAR -->
+    <!-- MODEL & PRESENTATION TITLE SELECTOR IN TOP BAR -->
     <div class="topbar-center">
+      <div class="pres-title-box-top">
+        <span class="pres-title-label">Presentación:</span>
+        <span class="pres-title-display" id="display-pres-title">Mi Presentación</span>
+        <button id="btn-rename-pres" class="btn-tiny btn-rename-icon" title="Cambiar nombre de la presentación">✏️</button>
+      </div>
+      <div class="divider-v"></div>
       <div class="model-picker">
         <label for="select-active-model">Modelo:</label>
         <select id="select-active-model" class="studio-select">
@@ -38,6 +46,8 @@
     </div>
 
     <div class="topbar-right">
+      <button id="btn-share-pres" class="btn-topbar btn-share-accent" title="Generar enlace público y código QR para ver sin login">🔗 Compartir / QR</button>
+      <div class="divider-v"></div>
       <button id="btn-theme-toggle" class="btn-theme" title="Alternar Modo Claro / Oscuro">☀️ Claro</button>
       <div class="divider-v"></div>
       <button id="btn-quick-autocenter" class="btn-topbar" title="Auto-centrar modelo y ajustar cámara">🎯 Auto Center</button>
@@ -67,7 +77,7 @@
           <span class="text-card-title">📝 Anotación de Texto</span>
           <div class="text-card-tools">
             <button id="btn-contrast-toggle" class="btn-tiny" title="Cambiar Contraste (Oscuro/Claro)">🌓</button>
-            <button id="btn-close-text-card" class="btn-tiny btn-close-card">&times;</button>
+            <button id="btn-close-text-card" class="btn-tiny btn-close-card" title="Eliminar anotación de texto">&times;</button>
           </div>
         </div>
         <div class="text-card-body">
@@ -84,14 +94,14 @@
           <span class="palette-label">Anotar</span>
           
           <!-- ARROW TOOL (Alpha .50 on select -> .75 on hover -> 1.0 on draw) -->
-          <button id="tool-btn-arrow" class="tool-icon-btn" title="Flecha 3D: Clic para activar (Alpha .50), clic en origen (Alpha .75), clic en destino (Alpha 1.0)">
+          <button id="tool-btn-arrow" class="tool-icon-btn" title="Flecha 3D: 1er clic en pantalla (origen), 2do clic en el modelo (destino)">
             <span class="tool-icon">🏹</span>
             <span class="tool-name">Flecha 3D</span>
             <span class="alpha-indicator" id="arrow-alpha-badge">OFF</span>
           </button>
 
           <!-- SPHERE HOTSPOT TOOL -->
-          <button id="tool-btn-sphere" class="tool-icon-btn" title="Marcador Esfera: Clic para activar (Alpha .50) y clic en el modelo (Alpha 1.0)">
+          <button id="tool-btn-sphere" class="tool-icon-btn" title="Marcador Esfera Translúcida: Clic sobre el modelo para colocarlo">
             <span class="tool-icon">📍</span>
             <span class="tool-name">Marcador</span>
             <span class="alpha-indicator" id="sphere-alpha-badge">OFF</span>
@@ -161,6 +171,9 @@
         <button id="btn-save-current-slide" class="btn-store-slide" title="Guarda la vista actual como un nuevo slide">
           <span>💾 Guardar Slide</span>
         </button>
+        <button id="btn-delete-active-slide" class="btn-delete-slide-action" title="Eliminar el slide actualmente seleccionado">
+          <span>🗑️ Borrar Slide</span>
+        </button>
       </div>
 
     </footer>
@@ -176,6 +189,7 @@
         <div class="pres-title-box">
           <label>Presentación:</label>
           <select id="select-presentation-tour" class="studio-select"></select>
+          <button id="btn-share-pres-view" class="btn-topbar btn-share-accent" style="margin-left: 0.5rem;">🔗 Compartir / QR</button>
         </div>
         <div class="pres-step-pill" id="pres-step-indicator">Slide 1 de 3</div>
       </div>
@@ -218,6 +232,35 @@
       <div class="models-grid-section">
         <h3>Modelos en Servidor</h3>
         <div class="models-cards-grid" id="models-cards-grid"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================================
+       MODAL: COMPARTIR & CÓDIGO QR PÚBLICO (SIN LOGIN)
+       ======================================================== -->
+  <div id="modal-share-qr" class="modal-backdrop hidden">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3>🔗 Compartir Presentación 3D</h3>
+        <button id="btn-close-share-modal" class="btn-tiny btn-close-modal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p class="modal-desc">Cualquier persona puede ver esta presentación 3D en su celular, tablet o PC <strong>sin necesidad de iniciar sesión</strong>.</p>
+        
+        <div class="qr-box">
+          <div id="qrcode-container" class="qrcode-canvas-wrap"></div>
+          <span class="qr-hint">📲 Escanea el código QR con tu celular</span>
+        </div>
+
+        <div class="share-url-row">
+          <input type="text" id="share-public-url" readonly class="share-url-input">
+          <button id="btn-copy-share-url" class="btn-copy-url">📋 Copiar Link</button>
+        </div>
+
+        <div class="share-actions-row">
+          <a id="btn-open-public-tab" href="#" target="_blank" class="btn-open-public-link">👁️ Abrir Visor Público en pestaña nueva</a>
+        </div>
       </div>
     </div>
   </div>
