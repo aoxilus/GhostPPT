@@ -650,6 +650,17 @@ body.studio-theme {
   overflow-x: auto;
   padding: 0.35rem 0;
   scroll-behavior: smooth;
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE and Edge */
+}
+
+.timeline-slides::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Opera */
+}
+
+.pres-slides-strip::-webkit-scrollbar,
+#public-slides-strip::-webkit-scrollbar {
+  display: none;
 }
 
 .timeline-slide-pill {

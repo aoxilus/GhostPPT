@@ -233,18 +233,25 @@ class StudioApp {
       });
     });
 
-    // Timeline < and > Carousel Scroll Arrows
-    const timelineContainer = document.getElementById('timeline-slides-container');
+    // Timeline < and > Carousel Navigation Arrows
     const scrollPrev = document.getElementById('btn-scroll-timeline-prev');
     const scrollNext = document.getElementById('btn-scroll-timeline-next');
-    if (scrollPrev && timelineContainer) {
+    if (scrollPrev) {
       scrollPrev.addEventListener('click', () => {
-        timelineContainer.scrollBy({ left: -240, behavior: 'smooth' });
+        if (this.currentSlides.length > 0 && this.activeSlideIdx > 0) {
+          this.selectSlide(this.activeSlideIdx - 1);
+        } else {
+          document.getElementById('timeline-slides-container')?.scrollBy({ left: -200, behavior: 'smooth' });
+        }
       });
     }
-    if (scrollNext && timelineContainer) {
+    if (scrollNext) {
       scrollNext.addEventListener('click', () => {
-        timelineContainer.scrollBy({ left: 240, behavior: 'smooth' });
+        if (this.currentSlides.length > 0 && this.activeSlideIdx < this.currentSlides.length - 1) {
+          this.selectSlide(this.activeSlideIdx + 1);
+        } else {
+          document.getElementById('timeline-slides-container')?.scrollBy({ left: 200, behavior: 'smooth' });
+        }
       });
     }
 
@@ -669,40 +676,7 @@ class StudioApp {
 
       // Single Click: Load that specific slide's exact elements
       pill.addEventListener('click', () => {
-        this.activeSlideIdx = idx;
-        document.querySelectorAll('.timeline-slide-pill').forEach((p, i) => p.classList.toggle('active', i === idx));
-
-        // Restore camera, rotation, material, arrows, and marker
-        this.editorViewer.flyTo(
-          { x: s.camera_x, y: s.camera_y, z: s.camera_z },
-          { x: s.target_x || 0, y: s.target_y || 0, z: s.target_z || 0 },
-          { x: s.rot_x || 0, y: s.rot_y || 0, z: s.rot_z || 0 }
-        );
-
-        this.editorViewer.setMaterial(s.view_mode || 'plain');
-        document.querySelectorAll('.mat-pill').forEach(b => {
-          b.classList.toggle('active', b.dataset.mat === (s.view_mode || 'plain'));
-        });
-
-        this.editorViewer.setArrows(s.arrows || []);
-        if (s.marker_x !== null && s.marker_x !== undefined) {
-          this.editorViewer.setMarker(s.marker_x, s.marker_y, s.marker_z);
-        } else {
-          this.editorViewer.clearMarker();
-        }
-
-        // Restore Text Card if present in this slide
-        const textCard = document.getElementById('text-card-overlay');
-        const textInput = document.getElementById('text-annotation-content');
-        if (s.description && s.description !== 'Vista guardada') {
-          textInput.value = s.description;
-          textCard.classList.remove('hidden');
-          document.getElementById('tool-btn-text').classList.add('active');
-        } else {
-          textInput.value = '';
-          textCard.classList.add('hidden');
-          document.getElementById('tool-btn-text').classList.remove('active');
-        }
+        this.selectSlide(idx);
       });
 
       // Double Click: Rename slide title
@@ -731,6 +705,55 @@ class StudioApp {
 
       container.appendChild(pill);
     });
+  }
+
+  selectSlide(idx) {
+    if (idx < 0 || idx >= this.currentSlides.length) return;
+    this.activeSlideIdx = idx;
+
+    const pills = document.querySelectorAll('#timeline-slides-container .timeline-slide-pill');
+    pills.forEach((p, i) => {
+      const active = (i === idx);
+      p.classList.toggle('active', active);
+      if (active) {
+        p.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+      }
+    });
+
+    const s = this.currentSlides[idx];
+    if (!s) return;
+
+    // Restore camera, rotation, material, arrows, and marker
+    this.editorViewer.flyTo(
+      { x: s.camera_x, y: s.camera_y, z: s.camera_z },
+      { x: s.target_x || 0, y: s.target_y || 0, z: s.target_z || 0 },
+      { x: s.rot_x || 0, y: s.rot_y || 0, z: s.rot_z || 0 }
+    );
+
+    this.editorViewer.setMaterial(s.view_mode || 'plain');
+    document.querySelectorAll('.mat-pill, .swatch-btn').forEach(b => {
+      b.classList.toggle('active', b.dataset.mat === (s.view_mode || 'plain'));
+    });
+
+    this.editorViewer.setArrows(s.arrows || []);
+    if (s.marker_x !== null && s.marker_x !== undefined) {
+      this.editorViewer.setMarker(s.marker_x, s.marker_y, s.marker_z);
+    } else {
+      this.editorViewer.clearMarker();
+    }
+
+    // Restore Text Card if present in this slide
+    const textCard = document.getElementById('text-card-overlay');
+    const textInput = document.getElementById('text-annotation-content');
+    if (s.description && s.description !== 'Vista guardada') {
+      textInput.value = s.description;
+      textCard.classList.remove('hidden');
+      document.getElementById('tool-btn-text').classList.add('active');
+    } else {
+      textInput.value = '';
+      textCard.classList.add('hidden');
+      document.getElementById('tool-btn-text').classList.remove('active');
+    }
   }
 
   async handleSaveSlide() {
