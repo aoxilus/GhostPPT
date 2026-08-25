@@ -231,7 +231,13 @@ class StudioApp {
       btn.addEventListener('click', () => {
         document.querySelectorAll('.mat-pill').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
-        this.editorViewer.setMaterial(btn.dataset.mat);
+        if (btn.dataset.mat === 'metal') {
+          const activeSwatch = document.querySelector('.metal-swatches-section .swatch-btn.active');
+          const col = activeSwatch ? activeSwatch.dataset.metalColor : (this.editorViewer.currentMetallicColor || '#93c5fd');
+          this.editorViewer.setMetallicColor(col);
+        } else {
+          this.editorViewer.setMaterial(btn.dataset.mat);
+        }
       });
     });
 

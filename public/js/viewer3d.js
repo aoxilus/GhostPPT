@@ -130,9 +130,9 @@ export class Viewer3D {
         side: THREE.DoubleSide
       }),
       metal: new THREE.MeshStandardMaterial({
-        color: 0xa5c4e8, // Bluish Silver (Plateado Azulado)
-        metalness: 0.95,
-        roughness: 0.16,
+        color: 0x93c5fd, // Default Titanium Blue
+        metalness: 0.72, // Balanced metalness: rich diffuse color visibility without pitch-black specular falloff
+        roughness: 0.24, // Smooth metallic luster with wide specular highlight
         side: THREE.DoubleSide
       }),
       squares: new THREE.MeshStandardMaterial({
@@ -227,20 +227,28 @@ export class Viewer3D {
     this.controls.dampingFactor = 0.08;
     this.controls.screenSpacePanning = true;
 
-    // Studio Lighting
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.75);
+    // 360° Studio Lighting (Bright, soft fill with zero pitch-black shadows)
+    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x94a3b8, 0.9);
+    hemiLight.position.set(0, 20, 0);
+    this.scene.add(hemiLight);
+
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
     this.scene.add(ambientLight);
 
     const keyLight = new THREE.DirectionalLight(0xffffff, 0.95);
     keyLight.position.set(8, 14, 10);
     this.scene.add(keyLight);
 
-    const fillLight = new THREE.DirectionalLight(0x94a3b8, 0.5);
-    fillLight.position.set(-8, -6, -8);
+    const fillLight = new THREE.DirectionalLight(0xdbeafe, 0.65);
+    fillLight.position.set(-8, -4, -8);
     this.scene.add(fillLight);
 
-    const rimLight = new THREE.DirectionalLight(0x38bdf8, 0.35);
-    rimLight.position.set(0, -10, 5);
+    const frontLight = new THREE.DirectionalLight(0xffffff, 0.45);
+    frontLight.position.set(0, 4, 12);
+    this.scene.add(frontLight);
+
+    const rimLight = new THREE.DirectionalLight(0x93c5fd, 0.4);
+    rimLight.position.set(0, -8, 6);
     this.scene.add(rimLight);
 
     // Floor Grid (Light Theme by default)
@@ -594,27 +602,35 @@ export class Viewer3D {
   // Metallic Color Customization
   setMetallicColor(hexColor) {
     this.currentMetallicColor = hexColor;
+    const col = new THREE.Color(hexColor);
     if (this.materials.metal) {
-      this.materials.metal.color.set(hexColor);
+      this.materials.metal.color.copy(col);
       this.materials.metal.needsUpdate = true;
     }
-    this.setMaterial('metal');
+    this.setMaterial('metal:' + hexColor);
   }
 
   // Material Switching (Mate, Metal, Tanjiro Squares, Rock Granite, Wireframe colors)
   setMaterial(mode) {
-    if (mode && mode.startsWith('metal:')) {
-      const color = mode.split(':')[1];
-      if (color) {
-        this.currentMetallicColor = color;
-        if (this.materials.metal) {
-          this.materials.metal.color.set(color);
+    let mat = this.materials.plain;
+    if (mode && mode.startsWith('metal')) {
+      if (mode.includes(':')) {
+        const color = mode.split(':')[1];
+        if (color) {
+          this.currentMetallicColor = color;
+          if (this.materials.metal) {
+            this.materials.metal.color.copy(new THREE.Color(color));
+            this.materials.metal.needsUpdate = true;
+          }
         }
       }
-      mode = 'metal';
+      mat = this.materials.metal;
+      this.currentViewMode = 'metal';
+    } else {
+      this.currentViewMode = mode;
+      mat = this.materials[mode] || this.materials.plain;
     }
-    this.currentViewMode = mode;
-    const mat = this.materials[mode] || this.materials.plain;
+
     if (this.loadedObject) {
       this.loadedObject.traverse((child) => {
         if (child.isMesh) {
