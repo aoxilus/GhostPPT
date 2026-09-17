@@ -81,6 +81,104 @@ function requireProfessor(req, res, next) {
   next();
 }
 
+function parseId(value) {
+  const n = Number(value);
+  return Number.isInteger(n) && n > 0 ? n : null;
+}
+
+function asFiniteNumber(value, fallback = 0) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+function asNullableNumber(value) {
+  if (value === null || value === undefined || value === '') return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
+function normalizeTitle(value) {
+  return String(value || '').trim();
+}
+
+function normalizeArrows(arrows) {
+  let parsed = arrows;
+  if (typeof arrows === 'string') {
+    try {
+      parsed = JSON.parse(arrows);
+    } catch {
+      throw new Error('arrows debe ser JSON válido');
+    }
+  }
+  if (parsed == null) return [];
+  if (!Array.isArray(parsed)) throw new Error('arrows debe ser un array');
+  return parsed.map((arrow, index) => {
+    if (!arrow || typeof arrow !== 'object' || !arrow.start || !arrow.end) {
+      throw new Error(`Flecha inválida en índice ${index}`);
+    }
+    return {
+      start: {
+        x: asFiniteNumber(arrow.start.x),
+        y: asFiniteNumber(arrow.start.y),
+        z: asFiniteNumber(arrow.start.z)
+      },
+      end: {
+        x: asFiniteNumber(arrow.end.x),
+        y: asFiniteNumber(arrow.end.y),
+        z: asFiniteNumber(arrow.end.z)
+      }
+    };
+  });
+}
+
+function getOwnedPresentation(presId, userId) {
+  return db.prepare('SELECT * FROM presentations WHERE id = ? AND user_id = ?').get(presId, userId);
+}
+
+function withTransaction(work) {
+  db.exec('BEGIN');
+  try {
+    const result = work();
+    db.exec('COMMIT');
+    return result;
+  } catch (err) {
+    try { db.exec('ROLLBACK'); } catch (_) { /* ignore rollback errors */ }
+    throw err;
+  }
+}
+
+function buildSlidePayload(body = {}) {
+  const title = normalizeTitle(body.title);
+  if (!title) {
+    throw new Error('El título del slide es requerido');
+  }
+  const arrows = normalizeArrows(body.arrows);
+  return {
+    title,
+    description: String(body.description || '').trim(),
+    camera_x: asFiniteNumber(body.camera_x, 0),
+    camera_y: asFiniteNumber(body.camera_y, 2),
+    camera_z: asFiniteNumber(body.camera_z, 7.5),
+    target_x: asFiniteNumber(body.target_x, 0),
+    target_y: asFiniteNumber(body.target_y, 0),
+    target_z: asFiniteNumber(body.target_z, 0),
+    object_x: asFiniteNumber(body.object_x, 0),
+    object_y: asFiniteNumber(body.object_y, 0),
+    object_z: asFiniteNumber(body.object_z, 0),
+    marker_x: asNullableNumber(body.marker_x),
+    marker_y: asNullableNumber(body.marker_y),
+    marker_z: asNullableNumber(body.marker_z),
+    marker_label: body.marker_label == null ? null : String(body.marker_label),
+    view_mode: String(body.view_mode || 'metal:#e2e8f0').trim() || 'metal:#e2e8f0',
+    arrows,
+    arrowsStr: JSON.stringify(arrows),
+    rot_x: asFiniteNumber(body.rot_x, 0),
+    rot_y: asFiniteNumber(body.rot_y, 0),
+    rot_z: asFiniteNumber(body.rot_z, 0),
+    step_order: body.step_order == null ? null : asFiniteNumber(body.step_order, null)
+  };
+}
+
 // ----------------------------------------------------
 // AUTH ENDPOINTS
 // ----------------------------------------------------
@@ -101,7 +199,15 @@ app.post('/api/auth/register', (req, res) => {
   if (!username || !password || !full_name) {
     return res.status(400).json({ error: 'Todos los campos son requeridos' });
   }
-  const userRole = role === 'student' ? 'student' : 'professor';
+  // Public registration creates students. Only an authenticated professor can create professors.
+  let userRole = 'student';
+  if (role === 'professor') {
+    if (req.session.userId && req.session.userRole === 'professor') {
+      userRole = 'professor';
+    } else {
+      return res.status(403).json({ error: 'Solo un profesor autenticado puede crear cuentas de profesor.' });
+    }
+  }
   const hash = bcrypt.hashSync(password, 10);
   try {
     const stmt = db.prepare('INSERT INTO users (username, password_hash, full_name, role) VALUES (?, ?, ?, ?)');
@@ -195,7 +301,10 @@ app.get('/api/presentations', (req, res) => {
 });
 
 app.get('/api/presentations/:id', (req, res) => {
-  const presId = req.params.id;
+  const presId = parseId(req.params.id);
+  if (!presId) {
+    return res.status(400).json({ error: 'ID de presentación inválido' });
+  }
   try {
     const pres = db.prepare(`
       SELECT p.*, u.full_name as author_name
@@ -214,7 +323,6 @@ app.get('/api/presentations/:id', (req, res) => {
       ORDER BY step_order ASC, id ASC
     `).all(presId);
 
-    // Parse arrows JSON safely for each slide
     const formattedSlides = slides.map(s => {
       let parsedArrows = [];
       try {
@@ -234,13 +342,14 @@ app.get('/api/presentations/:id', (req, res) => {
   }
 });
 
-app.post('/api/presentations', requireAuth, (req, res) => {
+app.post('/api/presentations', requireAuth, requireProfessor, (req, res) => {
   upload.single('modelFile')(req, res, err => {
     if (err) {
       return res.status(400).json({ error: err.message });
     }
     const { title, description, category, existing_filename } = req.body;
-    if (!title) {
+    const cleanTitle = normalizeTitle(title);
+    if (!cleanTitle) {
       return res.status(400).json({ error: 'El título es requerido' });
     }
 
@@ -251,8 +360,13 @@ app.post('/api/presentations', requireAuth, (req, res) => {
       modelFilename = req.file.filename;
       modelFormat = path.extname(req.file.filename).toLowerCase().replace('.', '');
     } else if (existing_filename) {
-      modelFilename = existing_filename;
-      modelFormat = path.extname(existing_filename).toLowerCase().replace('.', '');
+      const safeName = path.basename(String(existing_filename));
+      const existingPath = path.join(uploadsDir, safeName);
+      if (!fs.existsSync(existingPath)) {
+        return res.status(400).json({ error: 'El modelo seleccionado no existe' });
+      }
+      modelFilename = safeName;
+      modelFormat = path.extname(safeName).toLowerCase().replace('.', '');
     } else {
       return res.status(400).json({ error: 'Debes subir un archivo 3D o seleccionar uno existente' });
     }
@@ -260,70 +374,99 @@ app.post('/api/presentations', requireAuth, (req, res) => {
     const userId = req.session.userId;
 
     try {
-      const stmt = db.prepare(`
-        INSERT INTO presentations (title, description, category, model_filename, model_format, user_id)
-        VALUES (?, ?, ?, ?, ?, ?)
-      `);
-      const result = stmt.run(
-        title.trim(),
-        (description || '').trim(),
-        (category || 'General').trim(),
-        modelFilename,
-        modelFormat,
-        userId
-      );
+      const created = withTransaction(() => {
+        const result = db.prepare(`
+          INSERT INTO presentations (title, description, category, model_filename, model_format, user_id)
+          VALUES (?, ?, ?, ?, ?, ?)
+        `).run(
+          cleanTitle,
+          (description || '').trim(),
+          (category || 'General').trim(),
+          modelFilename,
+          modelFormat,
+          userId
+        );
 
-      const presId = result.lastInsertRowid;
+        const presId = result.lastInsertRowid;
 
-      // Create an initial starter slide
-      const insertSlide = db.prepare(`
-        INSERT INTO slides (
-          presentation_id, step_order, title, description,
-          camera_x, camera_y, camera_z,
-          target_x, target_y, target_z,
-          marker_x, marker_y, marker_z, marker_label,
-          view_mode, arrows
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `);
+        db.prepare(`
+          INSERT INTO slides (
+            presentation_id, step_order, title, description,
+            camera_x, camera_y, camera_z,
+            target_x, target_y, target_z,
+            object_x, object_y, object_z,
+            marker_x, marker_y, marker_z, marker_label,
+            view_mode, arrows,
+            rot_x, rot_y, rot_z
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).run(
+          presId, 1,
+          '1. Vista General',
+          'Inicio del recorrido 3D. Explora el modelo en 360 grados.',
+          0, 3, 8,
+          0, 0, 0,
+          0, 0, 0,
+          null, null, null, null,
+          'metal:#e2e8f0', '[]',
+          0, 0, 0
+        );
 
-      insertSlide.run(
-        presId, 1,
-        '1. Vista General',
-        'Inicio del recorrido 3D. Explora el modelo en 360 grados.',
-        0, 3, 8,
-        0, 0, 0,
-        null, null, null, null,
-        'metal:#e2e8f0', '[]'
-      );
+        return { id: Number(presId), model_filename: modelFilename, model_format: modelFormat };
+      });
 
-      res.status(201).json({ id: presId, message: 'Presentación creada con éxito' });
+      res.status(201).json({
+        id: created.id,
+        model_filename: created.model_filename,
+        model_format: created.model_format,
+        message: 'Presentación creada con éxito'
+      });
     } catch (dbErr) {
       res.status(500).json({ error: 'Error al crear presentación: ' + dbErr.message });
     }
   });
 });
 
-app.put('/api/presentations/:id', requireAuth, (req, res) => {
+app.put('/api/presentations/:id', requireAuth, requireProfessor, (req, res) => {
   const { title, description, category } = req.body;
-  const presId = req.params.id;
+  const presId = parseId(req.params.id);
+  if (!presId) {
+    return res.status(400).json({ error: 'ID de presentación inválido' });
+  }
   try {
+    const owned = getOwnedPresentation(presId, req.session.userId);
+    if (!owned) {
+      return res.status(404).json({ error: 'Presentación no encontrada o sin permiso' });
+    }
     db.prepare(`
       UPDATE presentations
       SET title = COALESCE(?, title),
           description = COALESCE(?, description),
           category = COALESCE(?, category)
-      WHERE id = ?
-    `).run(title, description, category, presId);
+      WHERE id = ? AND user_id = ?
+    `).run(
+      title == null ? null : normalizeTitle(title) || null,
+      description == null ? null : String(description).trim(),
+      category == null ? null : String(category).trim(),
+      presId,
+      req.session.userId
+    );
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: 'Error al actualizar presentación: ' + err.message });
   }
 });
 
-app.delete('/api/presentations/:id', requireAuth, (req, res) => {
-  const presId = req.params.id;
+app.delete('/api/presentations/:id', requireAuth, requireProfessor, (req, res) => {
+  const presId = parseId(req.params.id);
+  if (!presId) {
+    return res.status(400).json({ error: 'ID de presentación inválido' });
+  }
   try {
-    db.prepare('DELETE FROM presentations WHERE id = ?').run(presId);
+    const owned = getOwnedPresentation(presId, req.session.userId);
+    if (!owned) {
+      return res.status(404).json({ error: 'Presentación no encontrada o sin permiso' });
+    }
+    db.prepare('DELETE FROM presentations WHERE id = ? AND user_id = ?').run(presId, req.session.userId);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: 'Error al eliminar presentación: ' + err.message });
@@ -333,61 +476,55 @@ app.delete('/api/presentations/:id', requireAuth, (req, res) => {
 // ----------------------------------------------------
 // SLIDES ENDPOINTS (CÁMARA, FLECHAS 3D, MATERIALES, MARCADORES)
 // ----------------------------------------------------
-app.post('/api/presentations/:id/slides', requireAuth, (req, res) => {
-  const presId = req.params.id;
-  const {
-    title,
-    description,
-    camera_x, camera_y, camera_z,
-    target_x, target_y, target_z,
-    marker_x, marker_y, marker_z, marker_label,
-    view_mode,
-    arrows,
-    rot_x, rot_y, rot_z
-  } = req.body;
-
-  if (!title) {
-    return res.status(400).json({ error: 'El título del slide es requerido' });
+app.post('/api/presentations/:id/slides', requireAuth, requireProfessor, (req, res) => {
+  const presId = parseId(req.params.id);
+  if (!presId) {
+    return res.status(400).json({ error: 'ID de presentación inválido' });
   }
 
   try {
-    // Determine next step order
+    const owned = getOwnedPresentation(presId, req.session.userId);
+    if (!owned) {
+      return res.status(404).json({ error: 'Presentación no encontrada o sin permiso' });
+    }
+
+    const payload = buildSlidePayload(req.body);
     const maxOrderRow = db.prepare('SELECT MAX(step_order) as maxOrder FROM slides WHERE presentation_id = ?').get(presId);
     const nextOrder = (maxOrderRow && maxOrderRow.maxOrder !== null) ? maxOrderRow.maxOrder + 1 : 1;
 
-    const arrowsStr = typeof arrows === 'string' ? arrows : JSON.stringify(arrows || []);
-
-    const stmt = db.prepare(`
+    const result = db.prepare(`
       INSERT INTO slides (
         presentation_id, step_order, title, description,
         camera_x, camera_y, camera_z,
         target_x, target_y, target_z,
+        object_x, object_y, object_z,
         marker_x, marker_y, marker_z, marker_label,
         view_mode, arrows,
         rot_x, rot_y, rot_z
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `);
-
-    const result = stmt.run(
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
       presId,
       nextOrder,
-      title.trim(),
-      (description || '').trim(),
-      Number(camera_x) || 0,
-      Number(camera_y) || 0,
-      Number(camera_z) || 7.5,
-      Number(target_x) || 0,
-      Number(target_y) || 0,
-      Number(target_z) || 0,
-      marker_x !== undefined && marker_x !== null ? Number(marker_x) : null,
-      marker_y !== undefined && marker_y !== null ? Number(marker_y) : null,
-      marker_z !== undefined && marker_z !== null ? Number(marker_z) : null,
-      marker_label || null,
-      view_mode || 'metal:#e2e8f0',
-      arrowsStr,
-      Number(rot_x) || 0,
-      Number(rot_y) || 0,
-      Number(rot_z) || 0
+      payload.title,
+      payload.description,
+      payload.camera_x,
+      payload.camera_y,
+      payload.camera_z,
+      payload.target_x,
+      payload.target_y,
+      payload.target_z,
+      payload.object_x,
+      payload.object_y,
+      payload.object_z,
+      payload.marker_x,
+      payload.marker_y,
+      payload.marker_z,
+      payload.marker_label,
+      payload.view_mode,
+      payload.arrowsStr,
+      payload.rot_x,
+      payload.rot_y,
+      payload.rot_z
     );
 
     res.status(201).json({
@@ -395,106 +532,132 @@ app.post('/api/presentations/:id/slides', requireAuth, (req, res) => {
         id: result.lastInsertRowid,
         presentation_id: Number(presId),
         step_order: nextOrder,
-        title: title.trim(),
-        description: (description || '').trim(),
-        camera_x: Number(camera_x) || 0,
-        camera_y: Number(camera_y) || 0,
-        camera_z: Number(camera_z) || 7.5,
-        target_x: Number(target_x) || 0,
-        target_y: Number(target_y) || 0,
-        target_z: Number(target_z) || 0,
-        marker_x: marker_x !== undefined && marker_x !== null ? Number(marker_x) : null,
-        marker_y: marker_y !== undefined && marker_y !== null ? Number(marker_y) : null,
-        marker_z: marker_z !== undefined && marker_z !== null ? Number(marker_z) : null,
-        marker_label: marker_label || null,
-        view_mode: view_mode || 'metal:#e2e8f0',
-        arrows: typeof arrows === 'string' ? JSON.parse(arrowsStr) : (arrows || []),
-        rot_x: Number(rot_x) || 0,
-        rot_y: Number(rot_y) || 0,
-        rot_z: Number(rot_z) || 0
+        title: payload.title,
+        description: payload.description,
+        camera_x: payload.camera_x,
+        camera_y: payload.camera_y,
+        camera_z: payload.camera_z,
+        target_x: payload.target_x,
+        target_y: payload.target_y,
+        target_z: payload.target_z,
+        object_x: payload.object_x,
+        object_y: payload.object_y,
+        object_z: payload.object_z,
+        marker_x: payload.marker_x,
+        marker_y: payload.marker_y,
+        marker_z: payload.marker_z,
+        marker_label: payload.marker_label,
+        view_mode: payload.view_mode,
+        arrows: payload.arrows,
+        rot_x: payload.rot_x,
+        rot_y: payload.rot_y,
+        rot_z: payload.rot_z
       }
     });
   } catch (err) {
-    res.status(500).json({ error: 'Error al crear slide: ' + err.message });
+    const status = /requerido|inválid|JSON|array|Flecha/i.test(err.message) ? 400 : 500;
+    res.status(status).json({ error: 'Error al crear slide: ' + err.message });
   }
 });
 
-app.put('/api/presentations/:id/slides/:slideId', requireAuth, (req, res) => {
-  const { id: presId, slideId } = req.params;
-  const {
-    title,
-    description,
-    step_order,
-    camera_x, camera_y, camera_z,
-    target_x, target_y, target_z,
-    marker_x, marker_y, marker_z, marker_label,
-    view_mode,
-    arrows,
-    rot_x, rot_y, rot_z
-  } = req.body;
+app.put('/api/presentations/:id/slides/:slideId', requireAuth, requireProfessor, (req, res) => {
+  const presId = parseId(req.params.id);
+  const slideId = parseId(req.params.slideId);
+  if (!presId || !slideId) {
+    return res.status(400).json({ error: 'ID inválido' });
+  }
 
   try {
+    const owned = getOwnedPresentation(presId, req.session.userId);
+    if (!owned) {
+      return res.status(404).json({ error: 'Presentación no encontrada o sin permiso' });
+    }
+
     const existing = db.prepare('SELECT * FROM slides WHERE id = ? AND presentation_id = ?').get(slideId, presId);
     if (!existing) {
       return res.status(404).json({ error: 'Slide no encontrado' });
     }
 
-    const arrowsStr = arrows !== undefined ? (typeof arrows === 'string' ? arrows : JSON.stringify(arrows)) : existing.arrows;
+    const payload = buildSlidePayload({
+      ...existing,
+      ...req.body,
+      title: req.body.title != null ? req.body.title : existing.title,
+      description: req.body.description != null ? req.body.description : existing.description,
+      arrows: req.body.arrows !== undefined ? req.body.arrows : existing.arrows
+    });
 
     db.prepare(`
       UPDATE slides
-      SET title = COALESCE(?, title),
-          description = COALESCE(?, description),
+      SET title = ?,
+          description = ?,
           step_order = COALESCE(?, step_order),
-          camera_x = COALESCE(?, camera_x),
-          camera_y = COALESCE(?, camera_y),
-          camera_z = COALESCE(?, camera_z),
-          target_x = COALESCE(?, target_x),
-          target_y = COALESCE(?, target_y),
-          target_z = COALESCE(?, target_z),
+          camera_x = ?,
+          camera_y = ?,
+          camera_z = ?,
+          target_x = ?,
+          target_y = ?,
+          target_z = ?,
+          object_x = ?,
+          object_y = ?,
+          object_z = ?,
           marker_x = ?,
           marker_y = ?,
           marker_z = ?,
           marker_label = ?,
-          view_mode = COALESCE(?, view_mode),
+          view_mode = ?,
           arrows = ?,
-          rot_x = COALESCE(?, rot_x),
-          rot_y = COALESCE(?, rot_y),
-          rot_z = COALESCE(?, rot_z)
+          rot_x = ?,
+          rot_y = ?,
+          rot_z = ?
       WHERE id = ? AND presentation_id = ?
     `).run(
-      title ?? null,
-      description ?? null,
-      step_order ?? null,
-      camera_x ?? null,
-      camera_y ?? null,
-      camera_z ?? null,
-      target_x ?? null,
-      target_y ?? null,
-      target_z ?? null,
-      marker_x !== undefined ? marker_x : existing.marker_x,
-      marker_y !== undefined ? marker_y : existing.marker_y,
-      marker_z !== undefined ? marker_z : existing.marker_z,
-      marker_label !== undefined ? marker_label : existing.marker_label,
-      view_mode ?? null,
-      arrowsStr,
-      rot_x ?? null,
-      rot_y ?? null,
-      rot_z ?? null,
+      payload.title,
+      payload.description,
+      payload.step_order,
+      payload.camera_x,
+      payload.camera_y,
+      payload.camera_z,
+      payload.target_x,
+      payload.target_y,
+      payload.target_z,
+      payload.object_x,
+      payload.object_y,
+      payload.object_z,
+      payload.marker_x,
+      payload.marker_y,
+      payload.marker_z,
+      payload.marker_label,
+      payload.view_mode,
+      payload.arrowsStr,
+      payload.rot_x,
+      payload.rot_y,
+      payload.rot_z,
       slideId,
       presId
     );
 
     res.json({ success: true, message: 'Slide actualizado' });
   } catch (err) {
-    res.status(500).json({ error: 'Error al actualizar slide: ' + err.message });
+    const status = /requerido|inválid|JSON|array|Flecha/i.test(err.message) ? 400 : 500;
+    res.status(status).json({ error: 'Error al actualizar slide: ' + err.message });
   }
 });
 
-app.delete('/api/presentations/:id/slides/:slideId', requireAuth, (req, res) => {
-  const { id: presId, slideId } = req.params;
+app.delete('/api/presentations/:id/slides/:slideId', requireAuth, requireProfessor, (req, res) => {
+  const presId = parseId(req.params.id);
+  const slideId = parseId(req.params.slideId);
+  if (!presId || !slideId) {
+    return res.status(400).json({ error: 'ID inválido' });
+  }
   try {
-    db.prepare('DELETE FROM slides WHERE id = ? AND presentation_id = ?').run(slideId, presId);
+    const owned = getOwnedPresentation(presId, req.session.userId);
+    if (!owned) {
+      return res.status(404).json({ error: 'Presentación no encontrada o sin permiso' });
+    }
+    const result = db.prepare('DELETE FROM slides WHERE id = ? AND presentation_id = ?').run(slideId, presId);
+    if (!result.changes) {
+      return res.status(404).json({ error: 'Slide no encontrado' });
+    }
     res.json({ success: true, message: 'Slide eliminado' });
   } catch (err) {
     res.status(500).json({ error: 'Error al eliminar slide: ' + err.message });
@@ -502,21 +665,34 @@ app.delete('/api/presentations/:id/slides/:slideId', requireAuth, (req, res) => 
 });
 
 // Reorder slides
-app.post('/api/presentations/:id/slides/reorder', requireAuth, (req, res) => {
-  const presId = req.params.id;
-  const { slideIds } = req.body; // Array of IDs in order
+app.post('/api/presentations/:id/slides/reorder', requireAuth, requireProfessor, (req, res) => {
+  const presId = parseId(req.params.id);
+  const { slideIds } = req.body;
+  if (!presId) {
+    return res.status(400).json({ error: 'ID de presentación inválido' });
+  }
   if (!Array.isArray(slideIds)) {
     return res.status(400).json({ error: 'slideIds debe ser un array' });
   }
 
   try {
-    const updateStmt = db.prepare('UPDATE slides SET step_order = ? WHERE id = ? AND presentation_id = ?');
-    slideIds.forEach((id, index) => {
-      updateStmt.run(index + 1, id, presId);
+    const owned = getOwnedPresentation(presId, req.session.userId);
+    if (!owned) {
+      return res.status(404).json({ error: 'Presentación no encontrada o sin permiso' });
+    }
+
+    withTransaction(() => {
+      const updateStmt = db.prepare('UPDATE slides SET step_order = ? WHERE id = ? AND presentation_id = ?');
+      slideIds.forEach((id, index) => {
+        const slideId = parseId(id);
+        if (!slideId) throw new Error('slideIds contiene un id inválido');
+        updateStmt.run(index + 1, slideId, presId);
+      });
     });
     res.json({ success: true, message: 'Orden actualizado' });
   } catch (err) {
-    res.status(500).json({ error: 'Error al reordenar slides: ' + err.message });
+    const status = /inválido/i.test(err.message) ? 400 : 500;
+    res.status(status).json({ error: 'Error al reordenar slides: ' + err.message });
   }
 });
 

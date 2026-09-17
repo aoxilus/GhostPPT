@@ -5,6 +5,9 @@ node_modules/
 *.secret
 database.sqlite-wal
 database.sqlite-shm
+database.backup-*.sqlite
+database.backup-*.sqlite-wal
+database.backup-*.sqlite-shm
 .tempmediaStorage/
 .system_generated/
 .DS_Store

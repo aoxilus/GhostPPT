@@ -141,11 +141,11 @@
           <span class="text-card-title" data-i18n="text_card_title">📝 Anotación de Texto</span>
           <div class="text-card-tools">
             <button id="btn-contrast-toggle" class="btn-tiny" title="Cambiar Contraste (Oscuro/Claro)">🌓</button>
-            <button id="btn-close-text-card" class="btn-tiny btn-close-card" title="Eliminar anotación de texto">&times;</button>
+            <button id="btn-close-text-card" class="btn-tiny btn-close-card" data-autosave="text" title="Eliminar anotación de texto">&times;</button>
           </div>
         </div>
         <div class="text-card-body">
-          <textarea id="text-annotation-content" placeholder="Escribe aquí tu explicación o título..." rows="3"></textarea>
+          <textarea id="text-annotation-content" data-autosave="text" placeholder="Escribe aquí tu explicación o título..." rows="3"></textarea>
         </div>
         <div class="text-card-resize-handle"></div>
       </div>
@@ -178,7 +178,7 @@
           </button>
 
           <!-- CLEAN SLIDE (ARROWS, MARKER, TEXT) -->
-          <button id="btn-clear-arrows" class="tool-icon-btn btn-subtle-danger" title="Limpiar Slide: Borra flechas, marcadores y notas manteniendo la posición de la pieza">
+          <button id="btn-clear-arrows" class="tool-icon-btn btn-subtle-danger" data-autosave="clear" title="Limpiar Slide: Borra flechas, marcadores y notas manteniendo la posición de la pieza">
             <span class="tool-icon">🧹</span>
             <span class="tool-name" data-i18n="tool_clean">Limpiar</span>
           </button>
@@ -190,15 +190,15 @@
         <div class="palette-section">
           <span class="palette-label" data-i18n="label_orient">Orientar</span>
           
-          <button id="btn-palette-autocenter" class="tool-icon-btn tool-btn-accent" title="Auto-centra la pieza y ajusta el zoom">
+          <button id="btn-palette-autocenter" class="tool-icon-btn tool-btn-accent" data-autosave="autocenter" data-autosave-immediate title="Auto-centra la pieza y ajusta el zoom">
             <span class="tool-icon">🎯</span>
             <span class="tool-name" data-i18n="btn_autocenter">Centrar</span>
           </button>
 
           <div class="rot-row">
-            <button id="btn-rot-x" class="rot-btn" title="Rotar +90° en X">X +90°</button>
-            <button id="btn-rot-y" class="rot-btn" title="Rotar +90° en Y">Y +90°</button>
-            <button id="btn-rot-z" class="rot-btn" title="Rotar +90° en Z">Z +90°</button>
+            <button id="btn-rot-x" class="rot-btn" data-autosave="rotation" title="Rotar +90° en X">X +90°</button>
+            <button id="btn-rot-y" class="rot-btn" data-autosave="rotation" title="Rotar +90° en Y">Y +90°</button>
+            <button id="btn-rot-z" class="rot-btn" data-autosave="rotation" title="Rotar +90° en Z">Z +90°</button>
           </div>
         </div>
 
@@ -208,22 +208,22 @@
         <div class="palette-section">
           <span class="palette-label" data-i18n="label_material">Material</span>
           <div class="mat-pills-col">
-            <button class="mat-pill" data-mat="plain" data-i18n="mat_plain">Mate</button>
-            <button class="mat-pill active" data-mat="metal" data-i18n="mat_metal">Metálico</button>
-            <button class="mat-pill" data-mat="squares" title="Estilo Cuadros Tanjiro (Verde y Negro)" data-i18n="mat_squares">🏁 Cuadros</button>
-            <button class="mat-pill" data-mat="rock" title="Textura de Roca / Granito" data-i18n="mat_rock">🪨 Roca</button>
+            <button class="mat-pill" data-mat="plain" data-autosave="material" data-i18n="mat_plain">Mate</button>
+            <button class="mat-pill active" data-mat="metal" data-autosave="material" data-i18n="mat_metal">Metálico</button>
+            <button class="mat-pill" data-mat="squares" data-autosave="material" title="Estilo Cuadros Tanjiro (Verde y Negro)" data-i18n="mat_squares">🏁 Cuadros</button>
+            <button class="mat-pill" data-mat="rock" data-autosave="material" title="Textura de Roca / Granito" data-i18n="mat_rock">🪨 Roca</button>
           </div>
 
           <!-- METALLIC COLOR SELECTOR (1 or 2 Colors & Custom Picker) -->
           <div class="metal-swatches-section" id="section-metal-colors">
             <span class="wireframe-sublabel" data-i18n="label_metal_color">Tono Metálico:</span>
             <div class="wireframe-swatches-row">
-              <button class="swatch-btn swatch-metal-blue" data-metal-color="#93c5fd" title="Titanio Azulado (Plateado Azul)"></button>
-              <button class="swatch-btn swatch-metal-silver active" data-metal-color="#e2e8f0" title="Plata / Cromo Puro"></button>
-              <button class="swatch-btn swatch-metal-gold" data-metal-color="#fbbf24" title="Oro / Latón"></button>
-              <button class="swatch-btn swatch-metal-copper" data-metal-color="#f87171" title="Cobre / Oro Rosa"></button>
+              <button class="swatch-btn swatch-metal-blue" data-metal-color="#93c5fd" data-autosave="material" title="Titanio Azulado (Plateado Azul)"></button>
+              <button class="swatch-btn swatch-metal-silver active" data-metal-color="#e2e8f0" data-autosave="material" title="Plata / Cromo Puro"></button>
+              <button class="swatch-btn swatch-metal-gold" data-metal-color="#fbbf24" data-autosave="material" title="Oro / Latón"></button>
+              <button class="swatch-btn swatch-metal-copper" data-metal-color="#f87171" data-autosave="material" title="Cobre / Oro Rosa"></button>
               <label class="swatch-picker-label" title="Seleccionar Color Metálico Personalizado">
-                <input type="color" id="metal-custom-color-picker" value="#e2e8f0" class="swatch-color-input">
+                <input type="color" id="metal-custom-color-picker" value="#e2e8f0" data-autosave="material" class="swatch-color-input">
                 <span class="picker-glyph">🎨</span>
               </label>
             </div>
@@ -232,9 +232,9 @@
           <div class="wireframe-swatches-section">
             <span class="wireframe-sublabel" data-i18n="label_mesh">Malla:</span>
             <div class="wireframe-swatches-row">
-              <button class="swatch-btn swatch-white" data-mat="wireframe_white" title="Malla Blanca"></button>
-              <button class="swatch-btn swatch-blue" data-mat="wireframe_blue" title="Malla Azul"></button>
-              <button class="swatch-btn swatch-black" data-mat="wireframe_black" title="Malla Negra"></button>
+              <button class="swatch-btn swatch-white" data-mat="wireframe_white" data-autosave="material" title="Malla Blanca"></button>
+              <button class="swatch-btn swatch-blue" data-mat="wireframe_blue" data-autosave="material" title="Malla Azul"></button>
+              <button class="swatch-btn swatch-black" data-mat="wireframe_black" data-autosave="material" title="Malla Negra"></button>
             </div>
           </div>
         </div>
@@ -262,7 +262,7 @@
           <input type="checkbox" id="chk-copy-elements">
           <span data-i18n="copy_elements">Copy elements to next slide</span>
         </label>
-        <input type="text" id="input-new-slide-title" placeholder="Current slide title..." class="slide-name-input">
+        <input type="text" id="input-new-slide-title" data-autosave="title" placeholder="Current slide title..." class="slide-name-input">
         <span id="slide-save-status" class="slide-save-status" aria-live="polite"></span>
         <button id="btn-new-slide" class="btn-new-slide" type="button" title="Create a new slide">
           <span data-i18n="new_slide">➕ New Slide</span>

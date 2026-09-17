@@ -196,6 +196,7 @@ export class Viewer3D {
 
     // Camera animation
     this.isTransitioning = false;
+    this.suppressCameraEvents = false;
     this.camStart = new THREE.Vector3();
     this.camEnd = new THREE.Vector3();
     this.targetStart = new THREE.Vector3();
@@ -206,6 +207,21 @@ export class Viewer3D {
     this.mouse = new THREE.Vector2();
 
     this.init();
+  }
+
+  emitCameraChange() {
+    if (this.suppressCameraEvents || !this.options.onCameraChange) return;
+    this.options.onCameraChange(this.getCameraState());
+  }
+
+  withSuppressedCameraEvents(fn) {
+    const previous = this.suppressCameraEvents;
+    this.suppressCameraEvents = true;
+    try {
+      return fn();
+    } finally {
+      this.suppressCameraEvents = previous;
+    }
   }
 
   init() {
@@ -288,9 +304,7 @@ export class Viewer3D {
     this.renderer.domElement.addEventListener('contextmenu', (e) => this.onContextMenu(e));
 
     this.controls.addEventListener('change', () => {
-      if (this.options.onCameraChange) {
-        this.options.onCameraChange(this.getCameraState());
-      }
+      this.emitCameraChange();
     });
 
     this.animate();
@@ -719,6 +733,13 @@ export class Viewer3D {
     }
   }
 
+  setObjectPosition(x = 0, y = 0, z = 0) {
+    if (this.loadedObject) {
+      this.loadedObject.position.set(Number(x) || 0, Number(y) || 0, Number(z) || 0);
+      this.loadedObject.updateMatrixWorld(true);
+    }
+  }
+
   resetRotation() {
     if (this.loadedObject) {
       this.loadedObject.rotation.set(0, 0, 0);
@@ -727,7 +748,7 @@ export class Viewer3D {
   }
 
   // AUTO CENTER & GRAVITY GROUNDING (Fit to View)
-  autoCenterPieceAndCamera() {
+  autoCenterPieceAndCamera({ silent = false } = {}) {
     if (!this.loadedObject) return;
 
     // 1. Recalculate true World Bounding Box
@@ -748,19 +769,25 @@ export class Viewer3D {
     let cameraZ = Math.abs((maxDim / 2) / Math.tan(fovRad / 2));
     cameraZ *= 1.35; // 35% margin for comfortable framing
 
+    this.cancelTransition();
     this.camera.position.set(0, maxDim * 0.1, cameraZ);
     this.camera.lookAt(0, 0, 0);
     this.controls.target.set(0, 0, 0);
     this.controls.update();
 
-    if (this.options.onCameraChange) {
-      this.options.onCameraChange(this.getCameraState());
-    }
+    if (!silent) this.emitCameraChange();
+  }
+
+  cancelTransition() {
+    this.isTransitioning = false;
+    this.transProgress = 0;
   }
 
   // Load Model (.stl & .obj)
-  async loadModel(url, format = 'obj') {
+  async loadModel(url, format = 'obj', { autoFrame = true } = {}) {
     return new Promise((resolve, reject) => {
+      this.cancelTransition();
+      this.setActiveTool('none');
       if (this.loadedObject) {
         this.scene.remove(this.loadedObject);
         this.loadedObject = null;
@@ -810,10 +837,12 @@ export class Viewer3D {
         this.scene.add(root);
 
         // Floor Grid position
-        this.gridHelper.position.y = -2.6;
+        if (this.gridHelper) this.gridHelper.position.y = -2.6;
 
-        // Auto center view
-        this.autoCenterPieceAndCamera();
+        // Auto center view without firing autosave callbacks during load
+        if (autoFrame) {
+          this.autoCenterPieceAndCamera({ silent: true });
+        }
 
         resolve({ success: true, scale, maxDim });
       };
@@ -834,16 +863,65 @@ export class Viewer3D {
   }
 
   // Camera Fly Transition
-  flyTo(camPos, targetPos = { x: 0, y: 0, z: 0 }, rot = null) {
-    this.camStart.copy(this.camera.position);
-    this.camEnd.set(camPos.x, camPos.y, camPos.z);
-    this.targetStart.copy(this.controls.target);
-    this.targetEnd.set(targetPos.x, targetPos.y, targetPos.z);
+  flyTo(camPos, targetPos = { x: 0, y: 0, z: 0 }, rot = null, { animate = true } = {}) {
+    if (!camPos) return;
+    const endCam = {
+      x: Number(camPos.x) || 0,
+      y: Number(camPos.y) || 0,
+      z: Number(camPos.z) || 0
+    };
+    const endTarget = {
+      x: Number(targetPos?.x) || 0,
+      y: Number(targetPos?.y) || 0,
+      z: Number(targetPos?.z) || 0
+    };
+
     if (rot && this.loadedObject) {
       this.loadedObject.rotation.set(Number(rot.x) || 0, Number(rot.y) || 0, Number(rot.z) || 0);
     }
+
+    if (!animate) {
+      this.cancelTransition();
+      this.camera.position.set(endCam.x, endCam.y, endCam.z);
+      this.controls.target.set(endTarget.x, endTarget.y, endTarget.z);
+      this.controls.update();
+      return;
+    }
+
+    this.camStart.copy(this.camera.position);
+    this.camEnd.set(endCam.x, endCam.y, endCam.z);
+    this.targetStart.copy(this.controls.target);
+    this.targetEnd.set(endTarget.x, endTarget.y, endTarget.z);
     this.transProgress = 0;
     this.isTransitioning = true;
+  }
+
+  // Atomically restore a saved slide (camera, object, material, markers, arrows)
+  applySlideState(slide = {}, { animate = true } = {}) {
+    if (!slide) return;
+    this.withSuppressedCameraEvents(() => {
+      this.cancelTransition();
+      if (this.loadedObject) {
+        this.setObjectPosition(
+          slide.object_x ?? 0,
+          slide.object_y ?? 0,
+          slide.object_z ?? 0
+        );
+      }
+      this.flyTo(
+        { x: slide.camera_x, y: slide.camera_y, z: slide.camera_z },
+        { x: slide.target_x || 0, y: slide.target_y || 0, z: slide.target_z || 0 },
+        { x: slide.rot_x || 0, y: slide.rot_y || 0, z: slide.rot_z || 0 },
+        { animate }
+      );
+      this.setMaterial(slide.view_mode || 'metal:#e2e8f0');
+      this.setArrows(slide.arrows || []);
+      if (slide.marker_x !== null && slide.marker_x !== undefined) {
+        this.setMarker(slide.marker_x, slide.marker_y, slide.marker_z);
+      } else {
+        this.clearMarker();
+      }
+    });
   }
 
   getCameraState() {
@@ -864,6 +942,15 @@ export class Viewer3D {
         y: Number(rot.y.toFixed(3)),
         z: Number(rot.z.toFixed(3))
       }
+    };
+  }
+
+  getObjectPosition() {
+    const position = this.loadedObject?.position;
+    return {
+      x: Number((position?.x || 0).toFixed(3)),
+      y: Number((position?.y || 0).toFixed(3)),
+      z: Number((position?.z || 0).toFixed(3))
     };
   }
 

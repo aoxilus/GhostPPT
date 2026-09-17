@@ -1,6 +1,8 @@
 # GhostPPT 🥑
 
-GhostPPT is a local-first 3D presentation studio. Professors can load OBJ/STL models, create camera slides, add markers and arrows, select materials, and share a public viewer with a descriptive URL or QR code.
+GhostPPT is a local-first 3D presentation studio by [aoxilus](https://github.com/aoxilus). Professors can load OBJ/STL models, create camera slides, add markers and arrows, select materials, and share a public viewer with a descriptive URL or QR code.
+
+> **QA note:** automated end-to-end QA is still pending. Smoke tests covered auth, slide CRUD, autosave, ownership, and the public viewer; full regression QA is recommended before classroom use.
 
 ## Requirements
 

@@ -46,6 +46,9 @@ function initDB() {
       target_x REAL NOT NULL DEFAULT 0,
       target_y REAL NOT NULL DEFAULT 0,
       target_z REAL NOT NULL DEFAULT 0,
+      object_x REAL NOT NULL DEFAULT 0,
+      object_y REAL NOT NULL DEFAULT 0,
+      object_z REAL NOT NULL DEFAULT 0,
       marker_x REAL,
       marker_y REAL,
       marker_z REAL,
@@ -57,34 +60,28 @@ function initDB() {
     );
   `);
 
-  // Ensure columns exist if table already existed without them
-  try {
-    db.exec(`ALTER TABLE slides ADD COLUMN marker_x REAL;`);
-  } catch (e) {}
-  try {
-    db.exec(`ALTER TABLE slides ADD COLUMN marker_y REAL;`);
-  } catch (e) {}
-  try {
-    db.exec(`ALTER TABLE slides ADD COLUMN marker_z REAL;`);
-  } catch (e) {}
-  try {
-    db.exec(`ALTER TABLE slides ADD COLUMN marker_label TEXT;`);
-  } catch (e) {}
-  try {
-    db.exec(`ALTER TABLE slides ADD COLUMN view_mode TEXT DEFAULT 'plain';`);
-  } catch (e) {}
-  try {
-    db.exec(`ALTER TABLE slides ADD COLUMN arrows TEXT DEFAULT '[]';`);
-  } catch (e) {}
-  try {
-    db.exec(`ALTER TABLE slides ADD COLUMN rot_x REAL DEFAULT 0;`);
-  } catch (e) {}
-  try {
-    db.exec(`ALTER TABLE slides ADD COLUMN rot_y REAL DEFAULT 0;`);
-  } catch (e) {}
-  try {
-    db.exec(`ALTER TABLE slides ADD COLUMN rot_z REAL DEFAULT 0;`);
-  } catch (e) {}
+  // Idempotent column migrations: only ALTER when the column is missing.
+  const slideColumns = new Set(
+    db.prepare('PRAGMA table_info(slides)').all().map((col) => col.name)
+  );
+  const ensureSlideColumn = (name, ddl) => {
+    if (!slideColumns.has(name)) {
+      db.exec(`ALTER TABLE slides ADD COLUMN ${ddl}`);
+      slideColumns.add(name);
+    }
+  };
+  ensureSlideColumn('marker_x', 'marker_x REAL');
+  ensureSlideColumn('marker_y', 'marker_y REAL');
+  ensureSlideColumn('marker_z', 'marker_z REAL');
+  ensureSlideColumn('marker_label', 'marker_label TEXT');
+  ensureSlideColumn('view_mode', "view_mode TEXT DEFAULT 'plain'");
+  ensureSlideColumn('arrows', "arrows TEXT DEFAULT '[]'");
+  ensureSlideColumn('rot_x', 'rot_x REAL DEFAULT 0');
+  ensureSlideColumn('rot_y', 'rot_y REAL DEFAULT 0');
+  ensureSlideColumn('rot_z', 'rot_z REAL DEFAULT 0');
+  ensureSlideColumn('object_x', 'object_x REAL NOT NULL DEFAULT 0');
+  ensureSlideColumn('object_y', 'object_y REAL NOT NULL DEFAULT 0');
+  ensureSlideColumn('object_z', 'object_z REAL NOT NULL DEFAULT 0');
 
   // Check if we need to seed demo data
   const userCountRow = db.prepare('SELECT COUNT(*) as count FROM users').get();

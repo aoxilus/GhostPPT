@@ -1,6 +1,8 @@
 # GhostPPT 🥑
 
-GhostPPT es un estudio local para crear presentaciones 3D. Permite cargar modelos OBJ/STL, crear slides con cámara, agregar marcadores y flechas, seleccionar materiales y compartir un visor público mediante una URL descriptiva o código QR.
+GhostPPT es un estudio local para crear presentaciones 3D, por [aoxilus](https://github.com/aoxilus). Permite cargar modelos OBJ/STL, crear slides con cámara, agregar marcadores y flechas, seleccionar materiales y compartir un visor público mediante una URL descriptiva o código QR.
+
+> **Nota de QA:** la batería completa de pruebas aún está pendiente. Se verificaron humo de auth, CRUD de slides, autosave, ownership y el visor público; se recomienda QA de regresión antes de uso en clase.
 
 ## Requisitos
 

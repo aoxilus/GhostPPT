@@ -13,13 +13,19 @@ class PublicViewerApp {
     this.theme = 'light';
     this.backgroundStyle = this.readStoredBackgroundStyle();
     this.appBaseUrl = new URL('../', import.meta.url);
+    this.loadToken = 0;
 
     this.init();
   }
 
   async init() {
-    this.viewer = new Viewer3D('public-canvas-container');
-    this.viewer.setTheme(this.theme);
+    try {
+      this.viewer = new Viewer3D('public-canvas-container');
+      this.viewer.setTheme(this.theme);
+    } catch (err) {
+      this.showStatus('Could not start the 3D viewer.', err.message || String(err));
+      return;
+    }
 
     this.bindEvents();
     this.syncBackgroundControls();
@@ -30,21 +36,48 @@ class PublicViewerApp {
     let presId = urlParams.get('id') || (pathItem ? decodeURIComponent(pathItem[1]) : null);
 
     if (!presId) {
-      // If no ID specified, fetch the latest presentation
-      const listRes = await fetch(new URL('api/presentations', this.appBaseUrl));
-      const listData = await listRes.json();
-      if (listData.presentations && listData.presentations.length > 0) {
-        presId = listData.presentations[0].id;
+      try {
+        const listRes = await fetch(new URL('api/presentations', this.appBaseUrl));
+        if (!listRes.ok) {
+          throw new Error(`Could not list presentations (${listRes.status})`);
+        }
+        const listData = await listRes.json();
+        if (listData.presentations && listData.presentations.length > 0) {
+          presId = listData.presentations[0].id;
+        }
+      } catch (err) {
+        this.showStatus('Unable to load presentations.', err.message || String(err));
+        return;
       }
     }
 
     if (presId) {
       await this.loadPresentation(presId);
     } else {
-      document.getElementById('public-pres-title').textContent = 'No presentations available';
-      document.getElementById('public-slide-title').textContent = 'No content';
-      document.getElementById('public-slide-description').textContent = 'Upload a model and create your first presentation in the editor.';
+      this.showStatus(
+        'No presentations available',
+        'Upload a model and create your first presentation in the editor.'
+      );
     }
+  }
+
+  showStatus(title, description, { presentationTitle = null } = {}) {
+    const presTitleEl = document.getElementById('public-pres-title');
+    const slideTitleEl = document.getElementById('public-slide-title');
+    const slideDescEl = document.getElementById('public-slide-description');
+    const stepPill = document.getElementById('public-step-pill');
+    const strip = document.getElementById('public-slides-strip');
+
+    if (presTitleEl && presentationTitle != null) {
+      presTitleEl.textContent = presentationTitle;
+    } else if (presTitleEl && !this.presentation) {
+      presTitleEl.textContent = title;
+    }
+
+    if (slideTitleEl) slideTitleEl.textContent = title;
+    if (slideDescEl) slideDescEl.textContent = description || '';
+    if (stepPill) stepPill.textContent = this.slides.length ? `Slide ${this.currentIdx + 1} of ${this.slides.length}` : '—';
+    if (strip && !this.slides.length) strip.innerHTML = '';
   }
 
   readStoredBackgroundStyle() {
@@ -118,15 +151,15 @@ class PublicViewerApp {
   }
 
   bindEvents() {
-    document.getElementById('btn-public-prev').addEventListener('click', () => this.prevSlide());
-    document.getElementById('btn-public-next').addEventListener('click', () => this.nextSlide());
+    document.getElementById('btn-public-prev')?.addEventListener('click', () => this.prevSlide());
+    document.getElementById('btn-public-next')?.addEventListener('click', () => this.nextSlide());
 
     const themeBtn = document.getElementById('btn-public-theme');
-    themeBtn.addEventListener('click', () => {
+    themeBtn?.addEventListener('click', () => {
       this.theme = this.theme === 'light' ? 'dark' : 'light';
       document.body.dataset.theme = this.theme;
       themeBtn.textContent = this.theme === 'light' ? '☀️ Light' : '🌙 Dark';
-      this.viewer.setTheme(this.theme);
+      this.viewer?.setTheme(this.theme);
       this.applyBackgroundStyle();
     });
 
@@ -143,51 +176,111 @@ class PublicViewerApp {
     });
     backgroundStyle?.addEventListener('focus', () => this.updateBackgroundControls());
 
-    // Keyboard navigation (Arrow keys)
     window.addEventListener('keydown', (e) => {
       if (e.key === 'ArrowRight' || e.key === ' ') {
+        e.preventDefault();
         this.nextSlide();
       } else if (e.key === 'ArrowLeft') {
+        e.preventDefault();
         this.prevSlide();
       }
     });
   }
 
   async loadPresentation(presId) {
+    const token = ++this.loadToken;
+    this.showStatus('Loading presentation...', 'Fetching slides and 3D model.');
+
     try {
       const res = await fetch(new URL(`api/presentations/${encodeURIComponent(presId)}`, this.appBaseUrl));
-      const data = await res.json();
+      let data = null;
+      try {
+        data = await res.json();
+      } catch {
+        data = null;
+      }
+
+      if (token !== this.loadToken) return;
+
+      if (!res.ok) {
+        const message = data?.error || `Presentation not found (${res.status}).`;
+        this.presentation = null;
+        this.slides = [];
+        this.showStatus('Presentation unavailable', message);
+        return;
+      }
+
+      if (!data?.presentation) {
+        this.presentation = null;
+        this.slides = [];
+        this.showStatus('Presentation unavailable', 'The server returned an empty presentation.');
+        return;
+      }
+
       this.presentation = data.presentation;
-      this.slides = data.slides || [];
+      this.slides = Array.isArray(data.slides) ? data.slides : [];
       this.currentIdx = 0;
 
       document.getElementById('public-pres-title').textContent = this.presentation.title;
       document.title = `${this.presentation.title} — GhostPPT 3D`;
 
-      // Load 3D model
+      if (!this.presentation.model_filename) {
+        this.renderStrip();
+        this.showStatus(
+          'Model missing',
+          'This presentation has no 3D model file attached.',
+          { presentationTitle: this.presentation.title }
+        );
+        return;
+      }
+
       const modelUrl = new URL(
         `uploads/${encodeURIComponent(this.presentation.model_filename)}`,
         this.appBaseUrl
       );
-      await this.viewer.loadModel(modelUrl.href, this.presentation.model_format);
 
-      // Render timeline strip
+      try {
+        await this.viewer.loadModel(modelUrl.href, this.presentation.model_format);
+      } catch (modelErr) {
+        if (token !== this.loadToken) return;
+        this.renderStrip();
+        this.showStatus(
+          'Could not load 3D model',
+          modelErr.message || String(modelErr),
+          { presentationTitle: this.presentation.title }
+        );
+        return;
+      }
+
+      if (token !== this.loadToken) return;
+
       this.renderStrip();
 
       if (this.slides.length > 0) {
         this.goTo(0);
+      } else {
+        this.showStatus(
+          'No slides yet',
+          'This presentation exists but has no slides to play.',
+          { presentationTitle: this.presentation.title }
+        );
       }
     } catch (err) {
-      console.error('Error loading presentation:', err);
+      if (token !== this.loadToken) return;
+      this.presentation = null;
+      this.slides = [];
+      this.showStatus('Error loading presentation', err.message || String(err));
     }
   }
 
   renderStrip() {
     const strip = document.getElementById('public-slides-strip');
+    if (!strip) return;
     strip.innerHTML = '';
 
     this.slides.forEach((s, idx) => {
       const pill = document.createElement('button');
+      pill.type = 'button';
       pill.className = `timeline-slide-pill ${idx === this.currentIdx ? 'active' : ''}`;
       pill.textContent = `${idx + 1}. ${s.title}`;
       pill.addEventListener('click', () => this.goTo(idx));
@@ -200,19 +293,26 @@ class PublicViewerApp {
     this.currentIdx = idx;
     const slide = this.slides[idx];
 
-    // Fly camera & orientation
-    this.viewer.flyTo(
-      { x: slide.camera_x, y: slide.camera_y, z: slide.camera_z },
-      { x: slide.target_x || 0, y: slide.target_y || 0, z: slide.target_z || 0 },
-      { x: slide.rot_x || 0, y: slide.rot_y || 0, z: slide.rot_z || 0 }
-    );
-
-    this.viewer.setMaterial(slide.view_mode || 'metal:#e2e8f0');
-    this.viewer.setArrows(slide.arrows || []);
-    if (slide.marker_x !== null && slide.marker_x !== undefined) {
-      this.viewer.setMarker(slide.marker_x, slide.marker_y, slide.marker_z);
+    if (typeof this.viewer.applySlideState === 'function') {
+      this.viewer.applySlideState(slide, { animate: true });
     } else {
-      this.viewer.clearMarker();
+      this.viewer.flyTo(
+        { x: slide.camera_x, y: slide.camera_y, z: slide.camera_z },
+        { x: slide.target_x || 0, y: slide.target_y || 0, z: slide.target_z || 0 },
+        { x: slide.rot_x || 0, y: slide.rot_y || 0, z: slide.rot_z || 0 }
+      );
+      this.viewer.setObjectPosition(
+        slide.object_x ?? 0,
+        slide.object_y ?? 0,
+        slide.object_z ?? 0
+      );
+      this.viewer.setMaterial(slide.view_mode || 'metal:#e2e8f0');
+      this.viewer.setArrows(slide.arrows || []);
+      if (slide.marker_x !== null && slide.marker_x !== undefined) {
+        this.viewer.setMarker(slide.marker_x, slide.marker_y, slide.marker_z);
+      } else {
+        this.viewer.clearMarker();
+      }
     }
 
     document.getElementById('public-step-pill').textContent = `Slide ${idx + 1} of ${this.slides.length}`;
