@@ -1,18 +1,24 @@
 # GhostPPT 🥑
 
-GhostPPT es un estudio local para crear presentaciones 3D, por [aoxilus](https://github.com/aoxilus). Permite cargar modelos OBJ/STL, crear slides con cámara, agregar marcadores y flechas, seleccionar materiales y compartir un visor público mediante una URL descriptiva o código QR.
+**Estudio local de presentaciones 3D** por [aoxilus](https://github.com/aoxilus).
 
-> **Nota de QA:** la batería completa de pruebas aún está pendiente. Se verificaron humo de auth, CRUD de slides, autosave, ownership y el visor público; se recomienda QA de regresión antes de uso en clase.
+Arma un deck con modelos OBJ/STL, anota en 3D y comparte un enlace o QR de **solo visualización**—el público no necesita iniciar sesión.
 
-## Requisitos
+[English](README.md) · [Español](README.es.md)
 
-- Node.js 22 o posterior
-- npm
-- Un navegador moderno con soporte WebGL
+![Editor — slide con un modelo 3D](docs/images/editor-slide-model-a.png)
 
-Se requiere Node.js 22+ porque el servidor utiliza el módulo integrado `node:sqlite`.
+![Editor — el siguiente slide puede usar otro modelo](docs/images/editor-slide-model-b.png)
 
-## Ejecutar localmente
+## Por qué GhostPPT
+
+- **Una presentación, muchos modelos** — cada slide puede mostrar un STL/OBJ distinto de tu biblioteca
+- **Estudio para autores** — flechas, marcadores, notas, materiales, Auto Center, cámaras
+- **Reproducción pública** — Share / QR abre solo el viewer (celulares en la misma Wi‑Fi)
+- **Local primero** — Node + SQLite en tu PC; sin cuenta en la nube
+- **UI bilingüe** — interruptor English / Español
+
+## Inicio rápido
 
 ```powershell
 npm install
@@ -21,49 +27,36 @@ npm start
 
 Abre <http://localhost:3000/>.
 
-Para desarrollo con recarga automática:
+Requiere **Node.js 22+** (módulo integrado `node:sqlite`).
 
-```powershell
-npm run dev
-```
+## Flujo típico
 
-## Autenticación
-
-El editor requiere iniciar sesión. Los visores públicos no requieren login.
-
-La cuenta inicial del propietario es:
-
-- Usuario: `oscar`
-- Contraseña: se proporciona mediante `GHOSTPPT_INITIAL_PASSWORD`
-
-Configura esa variable antes de inicializar una base nueva. Nunca publiques la contraseña ni archivos `.env`.
-
-La clave de sesión debe proporcionarse mediante `GHOSTPPT_SESSION_SECRET`.
-
-## Datos SQLite
-
-El servidor crea `database.sqlite` automáticamente y prepara las tablas de usuarios, presentaciones y slides. Los cambios de cada slide se guardan mediante autosave.
-
-## Compartir
-
-El editor genera URLs públicas como:
-
-```text
-/user/oscar/collection/general/presentation/example-presentation/item/4
-```
-
-La URL abre únicamente `view.html`; nunca abre el editor. El diálogo Share / QR permite copiar el enlace público, descargar un PNG para PowerPoint y copiar HTML para una página web.
-
-El editor y el visor público tienen selector de fondo con opciones White, Dark, Solid color y Gradient. Los colores del gradiente se conservan localmente en el navegador.
+1. **Archivos 3D** — sube tu colección STL/OBJ a la biblioteca (no crea presentaciones)
+2. **Nueva presentación** — crea el deck solo con el título
+3. **Por slide** — elige el modelo, encuadra la cámara, anota; el autosave guarda en SQLite
+4. **Share / QR** — comparte la URL o el QR; el alumno abre el viewer sin login
 
 ## Documentación
 
-- [English user guide](docs/USER-GUIDE.en.md)
-- [Guía de usuario en español](docs/USER-GUIDE.es.md)
-- [GitHub Wiki](https://github.com/aoxilus/GhostPPT/wiki)
+| | |
+|---|---|
+| English user guide | [docs/USER-GUIDE.en.md](docs/USER-GUIDE.en.md) |
+| Guía en español | [docs/USER-GUIDE.es.md](docs/USER-GUIDE.es.md) |
+| Wiki | [github.com/aoxilus/GhostPPT/wiki](https://github.com/aoxilus/GhostPPT/wiki) |
+
+## Auth y compartir
+
+- **Editor** — requiere login (profesores crean y editan)
+- **Viewer público** — sin login; las escrituras siguen protegidas
+- Usuario inicial: `oscar` (contraseña con `GHOSTPPT_INITIAL_PASSWORD` — nunca la subas al repo)
+- Secreto de sesión: `GHOSTPPT_SESSION_SECRET`
+
+En la misma Wi‑Fi, Share / QR usa tu IP LAN para que el celular abra el viewer.
 
 ## Licencia
 
-CC BY-NC-SA 4.0. Consulta <https://creativecommons.org/licenses/by-nc-sa/4.0/>.
+**CC BY-NC-SA 4.0** — <https://creativecommons.org/licenses/by-nc-sa/4.0/>
+
+Código abierto para aprendizaje y uso no comercial. Ver `LICENSE`.
 
 Made with 🥑 by [aoxilus](https://github.com/aoxilus)

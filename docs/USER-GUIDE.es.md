@@ -1,36 +1,66 @@
-# Guía de usuario de GhostPPT
+# Guía de usuario de GhostPPT (Español)
 
-## Inicio de sesión
+Estudio local de presentaciones 3D de código abierto por [aoxilus](https://github.com/aoxilus).  
+Idioma de la interfaz: interruptor **EN / ES** en la barra superior.
 
-El editor está protegido por una sesión. El visor público no requiere iniciar sesión.
+## Inicio de sesión vs visor público
 
-El usuario inicial del propietario es `oscar`. Configura `GHOSTPPT_INITIAL_PASSWORD` antes de inicializar la base de datos por primera vez; nunca coloques la contraseña en el código fuente ni en la documentación.
+| Superficie | Login |
+|------------|--------|
+| **Editor 3D** (crear / editar) | Obligatorio |
+| **Visor público** (enlace Share / QR) | No requiere |
 
-## Crear y editar presentaciones
+El usuario inicial del propietario es `oscar`. Configura `GHOSTPPT_INITIAL_PASSWORD` antes de la primera inicialización. Nunca pongas contraseñas en el código ni en la documentación.
+
+## Biblioteca Archivos 3D
+
+1. Abre la pestaña **Archivos 3D**.
+2. Sube uno o varios archivos `.stl` / `.obj`.
+3. Los archivos van solo a la **biblioteca** — subir **no** crea una presentación.
+
+Usa **Usar en slide activo** cuando ya tengas una presentación abierta.
+
+## Crear una presentación
 
 1. Inicia sesión en el editor.
-2. Selecciona un modelo desde el selector Model.
-3. Usa el selector superior de presentaciones para abrir una presentación existente o elegir **New Presentation**.
-4. Usa el panel derecho para agregar flechas, marcadores, notas, materiales, rotaciones y Auto Center.
-5. Usa la línea de tiempo inferior para seleccionar slides, crear una slide nueva o borrar la slide actual.
+2. En el selector de presentaciones, elige **New Presentation** / nueva y escribe un título.
+3. El slide 1 arranca con un modelo de la biblioteca (o el primero disponible).
 
-Los cambios de las slides se guardan automáticamente en SQLite. No existe un botón manual de guardar. Los cambios de cámara, Auto Center, rotaciones, materiales, anotaciones, marcadores, flechas, títulos y limpieza activan el autosave.
+## Editar slides (modelo por slide)
+
+1. Selecciona un slide en la línea de tiempo inferior.
+2. Elige **Modelo del slide** en la barra — cada slide puede usar un STL/OBJ distinto.
+3. Usa el panel derecho: Flecha 3D, Marcador, Texto, Limpiar, Auto Center, rotaciones, materiales.
+4. Los cambios se **guardan solos** en SQLite (estado Saved). No hay botón Guardar aparte.
+
+Consejos:
+
+- **Copiar elementos al siguiente** — al crear un slide nuevo, puedes copiar anotaciones del actual.
+- Cambia de slide con libertad; el visor recarga el modelo de ese slide cuando hace falta.
 
 ## Fondos
 
-El editor y el visor público tienen su propio selector Background con estas opciones:
+El editor y el visor público tienen Background: White, Dark, Solid color, Gradient. Los colores del gradiente se guardan en el navegador.
 
-- White
-- Dark
-- Solid color
-- Gradient
+## Share / QR (solo viewer)
 
-Los colores inicial y final del gradiente permanecen visibles mientras Gradient está seleccionado y se guardan localmente en el navegador.
+1. Abre una presentación en el editor.
+2. Pulsa **Share / QR** / Compartir.
+3. Copia la URL pública, descarga un PNG QR para PowerPoint o copia el HTML embebido.
 
-## Compartir una presentación
+El enlace abre **solo el visor público** — nunca el editor. En la misma Wi‑Fi, el QR prioriza la IP LAN de tu PC para que el celular pueda entrar.
 
-Usa **Share / QR** en el editor para copiar la URL pública, descargar un PNG QR para PowerPoint o copiar el HTML para una página web. El enlace abre el visor público y nunca el editor.
+El público puede navegar slides y cambiar el fondo del viewer; no puede editar el deck.
 
-## SQLite
+## Ejecutar en local
 
-El servidor crea `database.sqlite` y guarda usuarios, presentaciones y estado de las slides. La base de datos es información local de la aplicación y no debe publicarse con credenciales reales ni contenido privado.
+```powershell
+npm install
+npm start
+```
+
+Abre <http://localhost:3000/>. Requiere Node.js 22+.
+
+## Licencia
+
+CC BY-NC-SA 4.0. Made with 🥑 by [aoxilus](https://github.com/aoxilus).

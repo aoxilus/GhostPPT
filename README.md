@@ -1,18 +1,24 @@
 # GhostPPT 🥑
 
-GhostPPT is a local-first 3D presentation studio by [aoxilus](https://github.com/aoxilus). Professors can load OBJ/STL models, create camera slides, add markers and arrows, select materials, and share a public viewer with a descriptive URL or QR code.
+**Local-first 3D presentation studio** by [aoxilus](https://github.com/aoxilus).
 
-> **QA note:** automated end-to-end QA is still pending. Smoke tests covered auth, slide CRUD, autosave, ownership, and the public viewer; full regression QA is recommended before classroom use.
+Build slide decks around OBJ/STL models, annotate in 3D, and share a **viewer-only** link or QR code—no login required for the audience.
 
-## Requirements
+[English](README.md) · [Español](README.es.md)
 
-- Node.js 22 or newer
-- npm
-- A modern browser with WebGL support
+![Editor — slide with one 3D model](docs/images/editor-slide-model-a.png)
 
-Node.js 22+ is required because the server uses the built-in `node:sqlite` module.
+![Editor — next slide can use a different model](docs/images/editor-slide-model-b.png)
 
-## Run locally
+## Why GhostPPT
+
+- **One presentation, many models** — each slide can show a different STL/OBJ from your library
+- **Studio for authors** — arrows, markers, notes, materials, Auto Center, camera views
+- **Public playback** — Share / QR opens the viewer only (phones on the same Wi‑Fi supported)
+- **Local & private by default** — Node + SQLite on your machine; no cloud account required
+- **Bilingual UI** — English / Español toggle in the studio
+
+## Quick start
 
 ```powershell
 npm install
@@ -21,67 +27,36 @@ npm start
 
 Open <http://localhost:3000/>.
 
-For development with automatic server reloads:
+Requires **Node.js 22+** (uses built-in `node:sqlite`).
 
-```powershell
-npm run dev
-```
+## Typical workflow
 
-## Authentication
-
-The editor requires a session login. Public presentation viewers do not require a login.
-
-The initial owner account is:
-
-- Username: `oscar`
-- Password: supplied through `GHOSTPPT_INITIAL_PASSWORD`
-
-Set the environment variable before initializing a new database. Never commit the password or any `.env` file.
-
-The session signing secret should be supplied through `GHOSTPPT_SESSION_SECRET`.
-
-## SQLite data
-
-The server creates `database.sqlite` automatically and initializes the users, presentations, and slides tables. Slide changes are saved automatically through the authenticated API.
-
-The database stores:
-
-- Users and bcrypt password hashes
-- Presentation titles, model references, and categories
-- Slide camera position, rotation, material, arrows, markers, and notes
-
-## Sharing
-
-The editor creates public viewer URLs such as:
-
-```text
-/user/oscar/collection/general/presentation/example-presentation/item/4
-```
-
-The URL opens `view.html` only. It never opens the editor. The Share / QR dialog can:
-
-- Copy the public viewer link
-- Download a PNG QR code for PowerPoint
-- Copy HTML that links a website image to the public viewer
-
-The public viewer also has its own background selector for the 3D canvas. The viewer can use a white, dark, custom solid-color, or two-color gradient background without changing the presentation data.
+1. **3D Files** — upload your STL/OBJ collection to the library (does not create a presentation)
+2. **New Presentation** — create a deck by title
+3. **Per slide** — pick the model, frame the camera, add annotations; autosave keeps it in SQLite
+4. **Share / QR** — hand out the public URL or QR; students open the viewer without signing in
 
 ## Documentation
 
-- [English user guide](docs/USER-GUIDE.en.md)
-- [Guía de usuario en español](docs/USER-GUIDE.es.md)
-- [GitHub Wiki](https://github.com/aoxilus/GhostPPT/wiki)
+| | |
+|---|---|
+| English user guide | [docs/USER-GUIDE.en.md](docs/USER-GUIDE.en.md) |
+| Guía en español | [docs/USER-GUIDE.es.md](docs/USER-GUIDE.es.md) |
+| Wiki | [github.com/aoxilus/GhostPPT/wiki](https://github.com/aoxilus/GhostPPT/wiki) |
 
-## Main folders
+## Auth & sharing
 
-- `server.js` — Express server and API routes
-- `db.js` — SQLite schema, migrations, and bootstrap account
-- `public/` — editor and public viewer
-- `uploads/` — local OBJ/STL model files
-- `database.sqlite` — local SQLite database
+- **Editor** — login required (professors create and edit)
+- **Public viewer** — no login; mutations stay blocked without a session
+- Initial owner username: `oscar` (password via `GHOSTPPT_INITIAL_PASSWORD` — never commit secrets)
+- Session secret: `GHOSTPPT_SESSION_SECRET`
+
+On the same Wi‑Fi, Share / QR prefers your LAN IP so phones can open the viewer.
 
 ## License
 
-CC BY-NC-SA 4.0. See <https://creativecommons.org/licenses/by-nc-sa/4.0/>.
+**CC BY-NC-SA 4.0** — <https://creativecommons.org/licenses/by-nc-sa/4.0/>
+
+Open-source for learning and non-commercial use. See `LICENSE`.
 
 Made with 🥑 by [aoxilus](https://github.com/aoxilus)

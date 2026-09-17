@@ -1,36 +1,66 @@
-# GhostPPT User Guide
+# GhostPPT User Guide (English)
 
-## Sign in
+Open-source local 3D presentation studio by [aoxilus](https://github.com/aoxilus).  
+UI language: use the **EN / ES** toggle in the studio header.
 
-The editor is protected by a session login. The public viewer does not require a login.
+## Sign in vs public viewer
 
-The initial owner username is `oscar`. Set `GHOSTPPT_INITIAL_PASSWORD` before the first database initialization; never place the password in source code or documentation.
+| Surface | Login |
+|---------|--------|
+| **3D Editor** (create / edit) | Required |
+| **Public viewer** (Share / QR link) | Not required |
 
-## Create and edit presentations
+The initial owner username is `oscar`. Set `GHOSTPPT_INITIAL_PASSWORD` before the first database init. Never put passwords in source or docs.
+
+## 3D Files library
+
+1. Open the **3D Files** tab.
+2. Upload one or many `.stl` / `.obj` files.
+3. Files go into the **library only** — uploading does **not** create a presentation.
+
+Use **Usar en slide activo / Use on active slide** once a presentation is open.
+
+## Create a presentation
 
 1. Sign in to the editor.
-2. Select a model from the Model selector.
-3. Use the top presentation selector to open an existing presentation or choose **New Presentation**.
-4. Use the right tool palette to add arrows, markers, notes, materials, rotations, and Auto Center.
-5. Use the bottom timeline to select slides, create a new slide, or delete the current slide.
+2. In the presentation selector, choose **New Presentation** and enter a title.
+3. Slide 1 starts with a library model (or the first available file).
 
-Slide changes are autosaved to SQLite. There is no manual save button. Camera changes, Auto Center, rotations, materials, annotations, markers, arrows, slide titles, and cleanup actions all trigger autosave.
+## Edit slides (per-slide model)
+
+1. Select a slide in the bottom timeline.
+2. Choose **Slide model** in the toolbar — each slide can use a different STL/OBJ.
+3. Use the right palette: 3D Arrow, Marker, Text, Clean, Auto Center, rotations, materials.
+4. Changes **autosave** to SQLite (status shows Saved). There is no separate Save button.
+
+Tips:
+
+- **Copy elements to next** — when creating a new slide, optionally copy annotations from the current one.
+- Switch slides freely; the viewer reloads that slide’s model when needed.
 
 ## Backgrounds
 
-The editor and public viewer each have a Background selector with:
+Editor and public viewer each have Background: White, Dark, Solid color, Gradient. Gradient colors stay in local browser storage.
 
-- White
-- Dark
-- Solid color
-- Gradient
+## Share / QR (viewer only)
 
-Gradient start and end colors remain visible while Gradient is selected and are stored locally in the browser.
+1. Open a presentation in the editor.
+2. Click **Share / QR**.
+3. Copy the public URL, download a PNG QR for PowerPoint, or copy embed HTML.
 
-## Share a presentation
+The link opens the **public viewer only** — never the editor. On the same Wi‑Fi, the QR prefers your computer’s LAN IP so phones can connect.
 
-Use **Share / QR** in the editor to copy the public URL, download a QR PNG for PowerPoint, or copy website embed HTML. The generated link opens the public viewer route and never the editor.
+Audience can navigate slides and change viewer background; they cannot edit the deck.
 
-## SQLite
+## Run locally
 
-The server creates `database.sqlite` and stores users, presentations, and slide state. The database is local application data and should not be committed with real credentials or private content.
+```powershell
+npm install
+npm start
+```
+
+Open <http://localhost:3000/>. Requires Node.js 22+.
+
+## License
+
+CC BY-NC-SA 4.0. Made with 🥑 by [aoxilus](https://github.com/aoxilus).
