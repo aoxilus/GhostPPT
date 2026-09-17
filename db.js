@@ -50,7 +50,7 @@ function initDB() {
       marker_y REAL,
       marker_z REAL,
       marker_label TEXT,
-      view_mode TEXT DEFAULT 'plain', -- 'plain', 'wireframe', 'texture'
+      view_mode TEXT DEFAULT 'metal:#e2e8f0', -- 'plain', 'metal:#hex', 'wireframe', 'texture'
       arrows TEXT DEFAULT '[]', -- JSON array of {start: {x,y,z}, end: {x,y,z}}
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (presentation_id) REFERENCES presentations(id) ON DELETE CASCADE
@@ -221,6 +221,49 @@ function initDB() {
       0, 0.3, 0, 'Cámara Vórtice',
       'plain', '[]'
     );
+  }
+
+  // Ensure the local owner account exists even when the database was
+  // initialized by an older version of GhostPPT.
+  const initialUsername = 'oscar';
+  const initialUser = db.prepare('SELECT id FROM users WHERE username = ?').get(initialUsername);
+  const initialPassword = process.env.GHOSTPPT_INITIAL_PASSWORD;
+  if (!initialUser && initialPassword) {
+    const initialPasswordHash = bcrypt.hashSync(initialPassword, 10);
+    db.prepare(`
+      INSERT INTO users (username, password_hash, full_name, role)
+      VALUES (?, ?, ?, ?)
+    `).run(initialUsername, initialPasswordHash, 'Oscar', 'professor');
+  } else if (!initialUser) {
+    console.warn('GHOSTPPT_INITIAL_PASSWORD is not set; the Oscar account was not created.');
+  }
+
+  // One-time migration for the original white/matte starter slides.
+  // After this version, a user-selected matte slide remains matte.
+  const schemaVersion = db.prepare('PRAGMA user_version').get().user_version || 0;
+  if (schemaVersion < 2) {
+    db.exec(`
+      UPDATE slides
+      SET view_mode = 'metal:#e2e8f0'
+      WHERE view_mode IS NULL OR view_mode = 'plain';
+      PRAGMA user_version = 2;
+    `);
+  }
+
+  // Make the first slide of an older local tour open in silver chrome.
+  // Later slides keep their individually saved material.
+  const currentVersion = db.prepare('PRAGMA user_version').get().user_version || 0;
+  if (currentVersion < 3) {
+    db.exec(`
+      UPDATE slides
+      SET view_mode = 'metal:#e2e8f0'
+      WHERE id IN (
+        SELECT MIN(id)
+        FROM slides
+        GROUP BY presentation_id
+      );
+      PRAGMA user_version = 3;
+    `);
   }
 }
 

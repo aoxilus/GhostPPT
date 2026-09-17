@@ -18,12 +18,20 @@ class StudioApp {
     this.currentTourId = null;
     this.currentSlides = [];
     this.activeSlideIdx = 0;
+    this.currentUser = null;
+    this.studioInitialized = false;
+    this.isApplyingSlide = false;
+    this.slideApplyToken = 0;
+    this.autosaveTimer = null;
+    this.autosaveInFlight = false;
+    this.autosaveQueued = false;
 
     // Draggable card state
     this.isDraggingCard = false;
     this.cardDragOffset = { x: 0, y: 0 };
     this.currentTheme = localStorage.getItem('ghostppt_theme') || 'light';
-    this.lang = localStorage.getItem('ghostppt_lang') || 'es';
+    this.editorBackgroundStyle = this.readStoredEditorBackgroundStyle();
+    this.lang = localStorage.getItem('ghostppt_lang') || 'en';
     this.i18n = {
       es: {
         tab_editor: "Editor 3D",
@@ -32,6 +40,14 @@ class StudioApp {
         btn_share: "🔗 Compartir / QR",
         pres_label: "Presentación:",
         model_label: "Modelo:",
+        background_label: "Fondo",
+        background_white: "Blanco",
+        background_dark: "Oscuro",
+        background_color: "Color sólido",
+        background_gradient: "Gradiente",
+        background_color_label: "Color",
+        background_start: "Inicio",
+        background_end: "Fin",
         btn_autocenter: "🎯 Auto Center",
         text_card_title: "📝 Anotación de Texto",
         label_annotate: "Anotar",
@@ -48,8 +64,8 @@ class StudioApp {
         label_metal_color: "Tono Metálico:",
         label_mesh: "Malla:",
         copy_elements: "Copiar elementos al siguiente",
-        btn_save_slide: "💾 Guardar Slide",
         btn_del_slide: "🗑️ Borrar Slide",
+        new_slide: "➕ Nueva Slide",
         btn_prev: "◀ Anterior",
         btn_next: "Siguiente ▶",
         models_title: "Biblioteca de Archivos 3D",
@@ -61,6 +77,8 @@ class StudioApp {
         share_modal_desc: "Cualquier persona puede ver esta presentación 3D en su celular, tablet o PC sin necesidad de iniciar sesión.",
         qr_hint: "📲 Escanea el código QR con tu celular",
         btn_copy_link: "📋 Copiar Link",
+        btn_download_qr: "⬇️ Descargar QR para PowerPoint",
+        btn_copy_embed: "🌐 Copiar HTML para website",
         open_public_tab: "👁️ Abrir Visor Público en pestaña nueva"
       },
       en: {
@@ -70,6 +88,14 @@ class StudioApp {
         btn_share: "🔗 Share / QR",
         pres_label: "Presentation:",
         model_label: "Model:",
+        background_label: "Background",
+        background_white: "White",
+        background_dark: "Dark",
+        background_color: "Solid color",
+        background_gradient: "Gradient",
+        background_color_label: "Color",
+        background_start: "Start",
+        background_end: "End",
         btn_autocenter: "🎯 Auto Center",
         text_card_title: "📝 Text Annotation",
         label_annotate: "Annotate",
@@ -86,8 +112,8 @@ class StudioApp {
         label_metal_color: "Metallic Color:",
         label_mesh: "Mesh:",
         copy_elements: "Copy elements to next",
-        btn_save_slide: "💾 Save Slide",
         btn_del_slide: "🗑️ Delete Slide",
+        new_slide: "➕ New Slide",
         btn_prev: "◀ Previous",
         btn_next: "Next ▶",
         models_title: "3D File Library",
@@ -99,6 +125,8 @@ class StudioApp {
         share_modal_desc: "Anyone can view this 3D presentation on their phone, tablet, or PC without needing to log in.",
         qr_hint: "📲 Scan the QR code with your phone",
         btn_copy_link: "📋 Copy Link",
+        btn_download_qr: "⬇️ Download QR for PowerPoint",
+        btn_copy_embed: "🌐 Copy website HTML",
         open_public_tab: "👁️ Open Public Viewer in new tab"
       }
     };
@@ -107,15 +135,169 @@ class StudioApp {
   }
 
   async init() {
+    this.bindAuthEvents();
+
+    try {
+      const res = await fetch('/api/auth/me');
+      const data = await res.json();
+      if (!data.user) {
+        this.setAuthState(null);
+        return;
+      }
+      this.currentUser = data.user;
+      this.setAuthState(data.user);
+    } catch (err) {
+      this.setAuthState(null, 'Unable to check the session.');
+      return;
+    }
+
+    await this.initializeStudio();
+  }
+
+  readStoredEditorBackgroundStyle() {
+    const fallback = {
+      mode: 'white',
+      color: '#f8fafc',
+      gradientStart: '#dbeafe',
+      gradientEnd: '#fbbf24'
+    };
+    try {
+      const stored = JSON.parse(localStorage.getItem('ghostppt_editor_background') || 'null');
+      return stored && typeof stored === 'object' ? { ...fallback, ...stored } : fallback;
+    } catch {
+      return fallback;
+    }
+  }
+
+  readEditorBackgroundControls() {
+    const readColor = (id, fallback) => {
+      const value = document.getElementById(id)?.value;
+      return /^#[0-9a-f]{6}$/i.test(value || '') ? value : fallback;
+    };
+    return {
+      mode: document.getElementById('editor-background-style')?.value || 'white',
+      color: readColor('editor-background-color', '#f8fafc'),
+      gradientStart: readColor('editor-gradient-start', '#dbeafe'),
+      gradientEnd: readColor('editor-gradient-end', '#fbbf24')
+    };
+  }
+
+  syncEditorBackgroundControls() {
+    const values = {
+      'editor-background-style': this.editorBackgroundStyle.mode,
+      'editor-background-color': this.editorBackgroundStyle.color,
+      'editor-gradient-start': this.editorBackgroundStyle.gradientStart,
+      'editor-gradient-end': this.editorBackgroundStyle.gradientEnd
+    };
+    Object.entries(values).forEach(([id, value]) => {
+      const input = document.getElementById(id);
+      if (input && value) input.value = value;
+    });
+  }
+
+  updateEditorBackgroundControls() {
+    const mode = this.editorBackgroundStyle.mode;
+    document.getElementById('editor-background-colors')?.classList.toggle(
+      'hidden',
+      mode !== 'color' && mode !== 'gradient'
+    );
+    document.getElementById('editor-solid-color-row')?.classList.toggle('hidden', mode !== 'color');
+    document.getElementById('editor-gradient-color-rows')?.classList.toggle('hidden', mode !== 'gradient');
+  }
+
+  applyEditorBackgroundStyle() {
+    this.editorBackgroundStyle = this.readEditorBackgroundControls();
+    localStorage.setItem('ghostppt_editor_background', JSON.stringify(this.editorBackgroundStyle));
+    this.updateEditorBackgroundControls();
+    this.editorViewer?.setBackgroundStyle(this.editorBackgroundStyle);
+  }
+
+  bindAuthEvents() {
+    const loginForm = document.getElementById('form-login');
+    if (loginForm) {
+      loginForm.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const username = document.getElementById('login-username').value.trim();
+        const password = document.getElementById('login-password').value;
+        const submitButton = loginForm.querySelector('button[type="submit"]');
+
+        this.setLoginError('');
+        submitButton.disabled = true;
+        submitButton.textContent = 'Signing in...';
+
+        try {
+          const res = await fetch('/api/auth/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, password })
+          });
+          const data = await res.json();
+          if (!res.ok) {
+            throw new Error(data.error || 'Unable to sign in.');
+          }
+
+          this.currentUser = data.user;
+          this.setAuthState(data.user);
+          await this.initializeStudio();
+        } catch (err) {
+          this.setLoginError(err.message);
+        } finally {
+          submitButton.disabled = false;
+          submitButton.textContent = 'Enter studio';
+        }
+      });
+    }
+
+    document.getElementById('btn-logout')?.addEventListener('click', async () => {
+      await fetch('/api/auth/logout', { method: 'POST' });
+      window.location.reload();
+    });
+  }
+
+  setLoginError(message) {
+    const errorEl = document.getElementById('login-error');
+    if (!errorEl) return;
+    errorEl.textContent = message;
+    errorEl.classList.toggle('hidden', !message);
+  }
+
+  setAuthState(user, errorMessage = '') {
+    const gate = document.getElementById('login-gate');
+    const controls = document.getElementById('auth-user-controls');
+    const nameEl = document.getElementById('auth-user-name');
+
+    if (user) {
+      gate?.classList.add('hidden');
+      controls?.classList.remove('hidden');
+      if (nameEl) nameEl.textContent = `👤 ${user.full_name}`;
+      this.setLoginError('');
+    } else {
+      gate?.classList.remove('hidden');
+      controls?.classList.add('hidden');
+      this.setLoginError(errorMessage);
+    }
+  }
+
+  async initializeStudio() {
+    if (this.studioInitialized) return;
+    this.studioInitialized = true;
+
     // 1. Initialize Studio Editor Viewer
     this.editorViewer = new Viewer3D('studio-canvas-container', {
-      onCameraChange: (coords) => this.onCamUpdate(coords),
+      onCameraChange: (coords) => {
+        this.onCamUpdate(coords);
+        this.scheduleAutosave('camera');
+      },
+      onArrowAdded: () => this.scheduleAutosave('arrow'),
+      onMarkerPlaced: () => this.scheduleAutosave('marker'),
       onToolStateChange: (state, msg) => this.onToolStateUpdate(state, msg)
     });
 
     // Apply active theme & language
     this.applyTheme(this.currentTheme);
     this.applyLanguage();
+    this.syncEditorBackgroundControls();
+    this.applyEditorBackgroundStyle();
 
     // 2. Setup Events
     this.bindEvents();
@@ -141,9 +323,10 @@ class StudioApp {
     localStorage.setItem('ghostppt_theme', theme);
     const btn = document.getElementById('btn-theme-toggle');
     if (btn) {
-      btn.textContent = theme === 'light' ? '☀️ Claro' : '🌙 Oscuro';
+      btn.textContent = theme === 'light' ? '☀️ Light' : '🌙 Dark';
     }
     if (this.editorViewer) this.editorViewer.setTheme(theme);
+    if (this.editorViewer) this.editorViewer.setBackgroundStyle(this.editorBackgroundStyle);
     if (this.presViewer) this.presViewer.setTheme(theme);
   }
 
@@ -167,7 +350,7 @@ class StudioApp {
     }
     const slideInput = document.getElementById('input-new-slide-title');
     if (slideInput) {
-      slideInput.placeholder = this.lang === 'es' ? 'Nombre de este slide...' : 'Name for this slide...';
+      slideInput.placeholder = this.lang === 'es' ? 'Nombre de este slide...' : 'Current slide title...';
     }
   }
 
@@ -189,6 +372,17 @@ class StudioApp {
       themeBtn.addEventListener('click', () => this.toggleTheme());
     }
 
+    const editorBackgroundInputs = [
+      'editor-background-style',
+      'editor-background-color',
+      'editor-gradient-start',
+      'editor-gradient-end'
+    ];
+    editorBackgroundInputs.forEach((id) => {
+      document.getElementById(id)?.addEventListener('input', () => this.applyEditorBackgroundStyle());
+      document.getElementById(id)?.addEventListener('change', () => this.applyEditorBackgroundStyle());
+    });
+
     // Main Workspace Tabs
     document.querySelectorAll('.view-tab').forEach(btn => {
       btn.addEventListener('click', () => {
@@ -205,25 +399,37 @@ class StudioApp {
       }
     });
 
-    // Quick Auto Center Topbar Button & Palette Button
-    document.getElementById('btn-quick-autocenter').addEventListener('click', () => {
-      this.editorViewer.autoCenterPieceAndCamera();
-      this.showToast(this.lang === 'es' ? '🎯 Pieza auto-centrada y cámara encuadrada' : '🎯 Piece auto-centered and camera framed');
+    const headerPresentationSelect = document.getElementById('select-header-presentation');
+    headerPresentationSelect?.addEventListener('change', async (e) => {
+      if (e.target.value === '__new__') {
+        await this.createNewPresentation();
+        return;
+      }
+      const tour = this.tours.find(t => String(t.id) === String(e.target.value));
+      if (tour) {
+        await this.selectModel(tour.model_filename, tour.id);
+      }
     });
+
+    // Right palette Auto Center button
     document.getElementById('btn-palette-autocenter').addEventListener('click', () => {
       this.editorViewer.autoCenterPieceAndCamera();
+      this.scheduleAutosave('autocenter');
       this.showToast(this.lang === 'es' ? '🎯 Pieza auto-centrada y cámara encuadrada' : '🎯 Piece auto-centered and camera framed');
     });
 
     // 90° Axis Rotations
     document.getElementById('btn-rot-x').addEventListener('click', () => {
       this.editorViewer.rotateObjectX(90);
+      this.scheduleAutosave('rotation');
     });
     document.getElementById('btn-rot-y').addEventListener('click', () => {
       this.editorViewer.rotateObjectY(90);
+      this.scheduleAutosave('rotation');
     });
     document.getElementById('btn-rot-z').addEventListener('click', () => {
       this.editorViewer.rotateObjectZ(90);
+      this.scheduleAutosave('rotation');
     });
 
     // Materials Pills
@@ -233,11 +439,12 @@ class StudioApp {
         btn.classList.add('active');
         if (btn.dataset.mat === 'metal') {
           const activeSwatch = document.querySelector('.metal-swatches-section .swatch-btn.active');
-          const col = activeSwatch ? activeSwatch.dataset.metalColor : (this.editorViewer.currentMetallicColor || '#93c5fd');
+          const col = activeSwatch ? activeSwatch.dataset.metalColor : (this.editorViewer.currentMetallicColor || '#e2e8f0');
           this.editorViewer.setMetallicColor(col);
         } else {
           this.editorViewer.setMaterial(btn.dataset.mat);
         }
+        this.scheduleAutosave('material');
       });
     });
 
@@ -247,6 +454,7 @@ class StudioApp {
         document.querySelectorAll('.wireframe-swatches-row .swatch-btn[data-mat]').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         this.editorViewer.setMaterial(btn.dataset.mat);
+        this.scheduleAutosave('material');
       });
     });
 
@@ -259,6 +467,7 @@ class StudioApp {
         document.querySelector('.mat-pill[data-mat="metal"]')?.classList.add('active');
 
         this.editorViewer.setMetallicColor(btn.dataset.metalColor);
+        this.scheduleAutosave('material');
       });
     });
 
@@ -271,8 +480,16 @@ class StudioApp {
         document.querySelector('.mat-pill[data-mat="metal"]')?.classList.add('active');
 
         this.editorViewer.setMetallicColor(e.target.value);
+        this.scheduleAutosave('material');
       });
     }
+
+    document.getElementById('text-annotation-content')?.addEventListener('input', () => {
+      this.scheduleAutosave('text');
+    });
+    document.getElementById('input-new-slide-title')?.addEventListener('input', () => {
+      this.scheduleAutosave('title');
+    });
 
     // Timeline < and > Carousel Navigation Arrows
     const scrollPrev = document.getElementById('btn-scroll-timeline-prev');
@@ -365,56 +582,22 @@ class StudioApp {
       if (titleInput) titleInput.value = '';
 
       this.showToast('🧹 Slide limpiado (flechas, marcadores y notas eliminados)');
+      this.scheduleAutosave('clear');
     });
 
-    // Save Slide
-    document.getElementById('btn-save-current-slide').addEventListener('click', () => {
-      this.handleSaveSlide();
+    document.getElementById('btn-new-slide')?.addEventListener('click', () => {
+      this.handleCreateSlide();
     });
 
     // Delete Active Slide Button
-    document.getElementById('btn-delete-active-slide').addEventListener('click', async () => {
-      if (!this.currentSlides || this.currentSlides.length === 0) {
-        this.showToast('No hay slides en esta presentación');
-        return;
-      }
-      const activeSlide = this.currentSlides[this.activeSlideIdx];
-      if (!activeSlide) return;
-
-      if (confirm(`¿Eliminar slide "${activeSlide.title}"?`)) {
-        try {
-          const res = await fetch(`/api/presentations/${this.currentTourId}/slides/${activeSlide.id}`, {
-            method: 'DELETE'
-          });
-          if (res.ok) {
-            this.currentSlides.splice(this.activeSlideIdx, 1);
-            this.activeSlideIdx = Math.max(0, this.activeSlideIdx - 1);
-            this.renderTimelineSlides();
-            this.showToast('🗑️ Slide eliminado');
-            await this.loadTours();
-          }
-        } catch (err) {
-          alert('Error al eliminar slide: ' + err.message);
-        }
-      }
+    document.getElementById('btn-delete-active-slide').addEventListener('click', () => {
+      this.deleteSlideAt(this.activeSlideIdx);
     });
 
     // Rename Presentation Title
     document.getElementById('btn-rename-pres').addEventListener('click', async () => {
       if (!this.currentTourId) {
-        const title = prompt('Nombre para la nueva presentación:', `Presentación de ${this.currentModel}`);
-        if (title && title.trim()) {
-          const res = await fetch('/api/presentations', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ title: title.trim(), existing_filename: this.currentModel })
-          });
-          const data = await res.json();
-          this.currentTourId = data.id;
-          await this.loadTours();
-          document.getElementById('display-pres-title').textContent = title.trim();
-          this.showToast(`✏️ Presentación creada: "${title.trim()}"`);
-        }
+        await this.createNewPresentation();
         return;
       }
 
@@ -445,10 +628,27 @@ class StudioApp {
         this.showToast('⚠️ Guarda un slide primero para compartir esta presentación');
         return;
       }
-      const publicUrl = `${window.location.origin}/view.html?id=${this.currentTourId}`;
+      // Resolve from app.js so it also works when deployed under /GPPT/.
+      const slugify = (value, fallback) => {
+        const slug = String(value || '')
+          .normalize('NFKD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, '-')
+          .replace(/^-+|-+$/g, '');
+        return slug || fallback;
+      };
+      const currentTour = this.tours.find(t => String(t.id) === String(this.currentTourId));
+      const userSlug = slugify(this.currentUser?.username, 'user');
+      const collectionSlug = slugify(currentTour?.category, 'general');
+      const presentationSlug = slugify(currentTour?.title, `presentation-${this.currentTourId}`);
+      const publicUrlObject = new URL(
+        `../user/${userSlug}/collection/${collectionSlug}/presentation/${presentationSlug}/item/${this.currentTourId}`,
+        import.meta.url
+      );
+      const publicUrl = publicUrlObject.href;
       document.getElementById('share-public-url').value = publicUrl;
       document.getElementById('btn-open-public-tab').href = publicUrl;
-
       const qrContainer = document.getElementById('qrcode-container');
       qrContainer.innerHTML = '';
       if (window.QRCode) {
@@ -481,6 +681,45 @@ class StudioApp {
         input.select();
         document.execCommand('copy');
         this.showToast('📋 ¡Enlace público copiado!');
+      }
+    });
+
+    document.getElementById('btn-download-qr')?.addEventListener('click', () => {
+      const qrContainer = document.getElementById('qrcode-container');
+      const canvas = qrContainer?.querySelector('canvas');
+      const dataUrl = canvas?.toDataURL('image/png') || qrContainer?.querySelector('img')?.src || null;
+      if (!dataUrl) {
+        this.showToast('⚠️ El QR todavía no está disponible');
+        return;
+      }
+      const link = document.createElement('a');
+      link.href = dataUrl;
+      link.download = `GhostPPT-QR-${this.currentTourId}.png`;
+      link.click();
+      this.showToast('✅ QR descargado para insertarlo en PowerPoint');
+    });
+
+    document.getElementById('btn-copy-embed')?.addEventListener('click', async () => {
+      const publicUrl = document.getElementById('share-public-url').value;
+      const qrContainer = document.getElementById('qrcode-container');
+      const canvas = qrContainer?.querySelector('canvas');
+      const dataUrl = canvas?.toDataURL('image/png') || qrContainer?.querySelector('img')?.src || null;
+      if (!dataUrl || !publicUrl) {
+        this.showToast('⚠️ Abre primero el diálogo Compartir / QR');
+        return;
+      }
+      const html = `<a href="${publicUrl}" target="_blank" rel="noopener"><img src="${dataUrl}" alt="Abrir presentación GhostPPT" width="220"></a>`;
+      try {
+        await navigator.clipboard.writeText(html);
+        this.showToast('✅ HTML copiado para tu website');
+      } catch (err) {
+        const helper = document.createElement('textarea');
+        helper.value = html;
+        document.body.appendChild(helper);
+        helper.select();
+        document.execCommand('copy');
+        helper.remove();
+        this.showToast('✅ HTML copiado para tu website');
       }
     });
 
@@ -641,7 +880,7 @@ class StudioApp {
     }
   }
 
-  async selectModel(filename) {
+  async selectModel(filename, preferredTourId = null) {
     this.currentModel = filename;
     document.getElementById('select-active-model').value = filename;
 
@@ -651,28 +890,112 @@ class StudioApp {
     try {
       await this.editorViewer.loadModel(`/uploads/${filename}`, ext);
       this.hideToast();
-      await this.loadSlidesForModel(filename);
+      await this.loadSlidesForModel(filename, preferredTourId);
     } catch (err) {
       this.showToast(`Error al cargar: ${err.message}`, 4000);
     }
   }
 
-  async loadSlidesForModel(filename) {
-    let tour = this.tours.find(t => t.model_filename === filename);
+  async createNewPresentation() {
+    const title = prompt('New presentation name:', `Presentation of ${this.currentModel}`);
+    if (!title || !title.trim()) {
+      await this.loadTours();
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/presentations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: title.trim(),
+          existing_filename: this.currentModel
+        })
+      });
+      const data = await res.json();
+      if (!res.ok || !data.id) {
+        throw new Error(data.error || 'Unable to create the presentation.');
+      }
+
+      this.currentTourId = data.id;
+      await this.loadTours();
+      await this.loadSlidesForModel(this.currentModel, data.id);
+      this.showToast(`✅ Presentation created: "${title.trim()}"`);
+    } catch (err) {
+      alert('Error creating presentation: ' + err.message);
+    }
+  }
+
+  async loadSlidesForModel(filename, preferredTourId = null) {
+    let tour = preferredTourId
+      ? this.tours.find(t => String(t.id) === String(preferredTourId))
+      : this.tours.find(t => t.model_filename === filename);
     if (!tour && this.tours.length > 0) tour = this.tours[0];
     this.currentTourId = tour ? tour.id : null;
+    this.activeSlideIdx = 0;
+    this.isApplyingSlide = true;
 
     const titleEl = document.getElementById('display-pres-title');
     if (tour) {
       if (titleEl) titleEl.textContent = tour.title;
+      const headerPresentationSelect = document.getElementById('select-header-presentation');
+      if (headerPresentationSelect) headerPresentationSelect.value = String(tour.id);
       const res = await fetch(`/api/presentations/${tour.id}`);
       const data = await res.json();
       this.currentSlides = data.slides || [];
     } else {
       if (titleEl) titleEl.textContent = `Presentación de ${filename}`;
+      const headerPresentationSelect = document.getElementById('select-header-presentation');
+      if (headerPresentationSelect) headerPresentationSelect.value = '';
       this.currentSlides = [];
     }
     this.renderTimelineSlides();
+    if (this.currentSlides.length > 0) {
+      this.selectSlide(0);
+    } else {
+      this.isApplyingSlide = false;
+    }
+  }
+
+  async deleteSlideAt(idx) {
+    if (!this.currentTourId || !this.currentSlides?.[idx]) {
+      this.showToast('No current slide to delete');
+      return;
+    }
+
+    const slide = this.currentSlides[idx];
+    if (!confirm(`Delete slide "${slide.title}"?`)) return;
+
+    try {
+      const res = await fetch(`/api/presentations/${this.currentTourId}/slides/${slide.id}`, {
+        method: 'DELETE'
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Unable to delete the slide.');
+
+      this.currentSlides.splice(idx, 1);
+      this.activeSlideIdx = this.currentSlides.length
+        ? Math.min(idx, this.currentSlides.length - 1)
+        : 0;
+      this.renderTimelineSlides();
+
+      if (this.currentSlides.length > 0) {
+        this.selectSlide(this.activeSlideIdx);
+      } else {
+        this.editorViewer.deleteAllArrows();
+        this.editorViewer.clearMarker();
+        document.getElementById('text-annotation-content').value = '';
+        document.getElementById('text-card-overlay').classList.add('hidden');
+        document.getElementById('tool-btn-text').classList.remove('active');
+        document.getElementById('input-new-slide-title').value = '';
+        this.setSaveStatus('No slides');
+      }
+
+      this.showToast('🗑️ Slide deleted');
+      await this.loadTours();
+    } catch (err) {
+      alert('Error deleting slide: ' + err.message);
+    }
   }
 
   renderTimelineSlides() {
@@ -696,22 +1019,7 @@ class StudioApp {
       delBtn.title = 'Eliminar este slide';
       delBtn.addEventListener('click', async (e) => {
         e.stopPropagation();
-        if (confirm(`¿Eliminar slide "${s.title}"?`)) {
-          try {
-            const res = await fetch(`/api/presentations/${this.currentTourId}/slides/${s.id}`, {
-              method: 'DELETE'
-            });
-            if (res.ok) {
-              this.currentSlides.splice(idx, 1);
-              this.activeSlideIdx = Math.max(0, idx - 1);
-              this.renderTimelineSlides();
-              this.showToast('🗑️ Slide eliminado');
-              await this.loadTours();
-            }
-          } catch (err) {
-            alert('Error al eliminar: ' + err.message);
-          }
-        }
+        await this.deleteSlideAt(idx);
       });
       pill.appendChild(delBtn);
 
@@ -751,6 +1059,8 @@ class StudioApp {
   selectSlide(idx) {
     if (idx < 0 || idx >= this.currentSlides.length) return;
     this.activeSlideIdx = idx;
+    const applyToken = ++this.slideApplyToken;
+    this.isApplyingSlide = true;
 
     const pills = document.querySelectorAll('#timeline-slides-container .timeline-slide-pill');
     pills.forEach((p, i) => {
@@ -763,6 +1073,8 @@ class StudioApp {
 
     const s = this.currentSlides[idx];
     if (!s) return;
+    const titleInput = document.getElementById('input-new-slide-title');
+    if (titleInput) titleInput.value = s.title || '';
 
     // Restore camera, rotation, material, arrows, and marker
     this.editorViewer.flyTo(
@@ -771,7 +1083,7 @@ class StudioApp {
       { x: s.rot_x || 0, y: s.rot_y || 0, z: s.rot_z || 0 }
     );
 
-    const mode = s.view_mode || 'plain';
+    const mode = s.view_mode || 'metal:#e2e8f0';
     this.editorViewer.setMaterial(mode);
     const modeKey = mode.split(':')[0];
     document.querySelectorAll('.mat-pill').forEach(b => {
@@ -809,37 +1121,55 @@ class StudioApp {
       textCard.classList.add('hidden');
       document.getElementById('tool-btn-text').classList.remove('active');
     }
+
+    window.setTimeout(() => {
+      if (applyToken === this.slideApplyToken) {
+        this.isApplyingSlide = false;
+        this.setSaveStatus('Saved');
+      }
+    }, 800);
   }
 
-  async handleSaveSlide() {
-    const titleInput = document.getElementById('input-new-slide-title');
-    const title = titleInput.value.trim() || `Slide ${this.currentSlides.length + 1}`;
+  async ensurePresentation() {
+    if (this.currentTourId) return true;
 
-    const textCardContent = document.getElementById('text-annotation-content').value.trim();
-    const description = textCardContent || 'Vista guardada';
-
-    // Auto-create tour for model if needed
-    if (!this.currentTourId) {
-      const createRes = await fetch('/api/presentations', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: `Tour de ${this.currentModel}`,
-          existing_filename: this.currentModel
-        })
-      });
-      const createData = await createRes.json();
-      this.currentTourId = createData.id;
-      await this.loadTours();
+    const createRes = await fetch('/api/presentations', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: `Tour de ${this.currentModel}`,
+        existing_filename: this.currentModel
+      })
+    });
+    const createData = await createRes.json();
+    if (!createRes.ok || !createData.id) {
+      throw new Error(createData.error || 'No se pudo crear la presentación.');
     }
 
+    this.currentTourId = createData.id;
+    await this.loadTours();
+    const detailRes = await fetch(`/api/presentations/${this.currentTourId}`);
+    const detailData = await detailRes.json();
+    this.currentSlides = detailData.slides || [];
+    this.activeSlideIdx = 0;
+    this.renderTimelineSlides();
+    if (this.currentSlides.length > 0) this.selectSlide(0);
+    return true;
+  }
+
+  collectCurrentSlidePayload() {
+    const titleInput = document.getElementById('input-new-slide-title');
+    const currentSlide = this.currentSlides[this.activeSlideIdx];
+    const title = titleInput?.value.trim() || currentSlide?.title || `Slide ${this.activeSlideIdx + 1}`;
+    const textCardContent = document.getElementById('text-annotation-content')?.value.trim();
+    const description = textCardContent || 'Vista guardada';
     const camState = this.editorViewer.getCameraState();
-    let currentMode = this.editorViewer.currentViewMode || 'plain';
+    let currentMode = this.editorViewer.currentViewMode || 'metal';
     if (currentMode === 'metal' && this.editorViewer.currentMetallicColor) {
       currentMode = `metal:${this.editorViewer.currentMetallicColor}`;
     }
 
-    const payload = {
+    return {
       title,
       description,
       camera_x: camState.camera.x,
@@ -857,40 +1187,119 @@ class StudioApp {
       rot_y: camState.rotation.y,
       rot_z: camState.rotation.z
     };
+  }
+
+  setSaveStatus(status) {
+    const statusEl = document.getElementById('slide-save-status');
+    if (statusEl) statusEl.textContent = status;
+  }
+
+  scheduleAutosave() {
+    if (
+      this.isApplyingSlide ||
+      !this.currentTourId ||
+      !this.currentSlides[this.activeSlideIdx]?.id
+    ) {
+      return;
+    }
+
+    clearTimeout(this.autosaveTimer);
+    this.setSaveStatus('Pending changes');
+    this.autosaveTimer = window.setTimeout(() => {
+      this.saveActiveSlide();
+    }, 500);
+  }
+
+  async saveActiveSlide({ notify = false } = {}) {
+    const activeSlide = this.currentSlides[this.activeSlideIdx];
+    if (!this.currentTourId || !activeSlide?.id) return false;
+
+    if (this.autosaveInFlight) {
+      this.autosaveQueued = true;
+      return false;
+    }
+
+    this.autosaveInFlight = true;
+    this.setSaveStatus('Saving...');
+    const payload = this.collectCurrentSlidePayload();
 
     try {
+      const res = await fetch(`/api/presentations/${this.currentTourId}/slides/${activeSlide.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'No se pudo guardar la slide.');
+
+      Object.assign(activeSlide, payload);
+      this.setSaveStatus('Saved');
+      if (notify) this.showToast('✅ Cambios guardados en la slide activa.');
+      return true;
+    } catch (err) {
+      this.setSaveStatus('Save error');
+      if (notify) alert('Error al guardar: ' + err.message);
+      else console.error('Autosave error:', err);
+      return false;
+    } finally {
+      this.autosaveInFlight = false;
+      if (this.autosaveQueued) {
+        this.autosaveQueued = false;
+        this.scheduleAutosave();
+      }
+    }
+  }
+
+  async handleCreateSlide() {
+    try {
+      clearTimeout(this.autosaveTimer);
+      await this.ensurePresentation();
+      const shouldCopy = document.getElementById('chk-copy-elements').checked;
+      const currentPayload = this.collectCurrentSlidePayload();
+      const payload = shouldCopy
+        ? currentPayload
+        : {
+            ...currentPayload,
+            description: 'Vista guardada',
+            marker_x: null,
+            marker_y: null,
+            marker_z: null,
+            arrows: []
+          };
       const res = await fetch(`/api/presentations/${this.currentTourId}/slides`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
       const data = await res.json();
-      if (data.slide) {
-        this.currentSlides.push(data.slide);
-        this.activeSlideIdx = this.currentSlides.length - 1;
-        this.renderTimelineSlides();
-        titleInput.value = '';
-
-        const shouldCopy = document.getElementById('chk-copy-elements').checked;
-        if (!shouldCopy) {
-          // Clear annotations for clean new slide (keeping model position & cam intact)
-          this.editorViewer.deleteAllArrows();
-          this.editorViewer.clearMarker();
-          const textInput = document.getElementById('text-annotation-content');
-          if (textInput) textInput.value = '';
-          const textCard = document.getElementById('text-card-overlay');
-          if (textCard) textCard.classList.add('hidden');
-          document.getElementById('tool-btn-text').classList.remove('active');
-
-          this.showToast('✅ Nuevo Slide guardado. Listo para nuevas anotaciones.');
-        } else {
-          this.showToast('✅ Slide guardado (elementos copiados para el siguiente).');
-        }
-
-        await this.loadTours();
+      if (!res.ok || !data.slide) {
+        throw new Error(data.error || 'No se pudo crear la slide.');
       }
+
+      this.currentSlides.push(data.slide);
+      this.activeSlideIdx = this.currentSlides.length - 1;
+      this.renderTimelineSlides();
+
+      if (!shouldCopy) {
+        this.editorViewer.deleteAllArrows();
+        this.editorViewer.clearMarker();
+        const textInput = document.getElementById('text-annotation-content');
+        if (textInput) textInput.value = '';
+        const textCard = document.getElementById('text-card-overlay');
+        if (textCard) textCard.classList.add('hidden');
+        document.getElementById('tool-btn-text').classList.remove('active');
+      }
+
+      this.selectSlide(this.activeSlideIdx);
+      this.setSaveStatus('Saved');
+      this.showToast(
+        shouldCopy
+          ? '✅ Nueva slide creada con elementos copiados.'
+          : '✅ Nueva slide creada.'
+      );
+      await this.loadTours();
     } catch (err) {
-      alert('Error al guardar: ' + err.message);
+      alert('Error al crear slide: ' + err.message);
     }
   }
 
@@ -904,13 +1313,29 @@ class StudioApp {
       this.tours = data.presentations || [];
 
       const select = document.getElementById('select-presentation-tour');
-      select.innerHTML = '';
+      if (select) select.innerHTML = '';
+      const headerSelect = document.getElementById('select-header-presentation');
+      if (headerSelect) headerSelect.innerHTML = '';
       this.tours.forEach(t => {
         const opt = document.createElement('option');
         opt.value = t.id;
         opt.textContent = `${t.title} (${t.slide_count} slides)`;
-        select.appendChild(opt);
+        select?.appendChild(opt);
+
+        if (headerSelect) {
+          const headerOpt = document.createElement('option');
+          headerOpt.value = t.id;
+          headerOpt.textContent = `${t.title} (${t.slide_count} slides)`;
+          headerSelect.appendChild(headerOpt);
+        }
       });
+      if (headerSelect) {
+        const newOpt = document.createElement('option');
+        newOpt.value = '__new__';
+        newOpt.textContent = '➕ New Presentation';
+        headerSelect.appendChild(newOpt);
+        if (this.currentTourId) headerSelect.value = String(this.currentTourId);
+      }
     } catch (err) {
       console.error(err);
     }
@@ -975,7 +1400,7 @@ class StudioApp {
       { x: slide.rot_x || 0, y: slide.rot_y || 0, z: slide.rot_z || 0 }
     );
 
-    this.presViewer.setMaterial(slide.view_mode || 'plain');
+    this.presViewer.setMaterial(slide.view_mode || 'metal:#e2e8f0');
     this.presViewer.setArrows(slide.arrows || []);
     if (slide.marker_x !== null && slide.marker_x !== undefined) {
       this.presViewer.setMarker(slide.marker_x, slide.marker_y, slide.marker_z);

@@ -214,6 +214,57 @@ body.studio-theme {
   gap: 0.85rem;
 }
 
+.editor-background-picker {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.editor-background-picker .studio-select {
+  min-width: 128px;
+  padding: 0.35rem 0.55rem;
+  font-size: 0.78rem;
+}
+
+.editor-background-colors {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  right: 0;
+  z-index: 120;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  min-width: 178px;
+  padding: 0.65rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: var(--bg-panel);
+  box-shadow: var(--shadow-card);
+}
+
+.editor-background-color-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  color: var(--text-secondary);
+  font-size: 0.76rem;
+}
+
+.editor-background-color-row input[type="color"] {
+  width: 34px;
+  height: 26px;
+  padding: 2px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 5px;
+  background: var(--bg-panel-elevated);
+  cursor: pointer;
+}
+
 .btn-theme {
   background: var(--bg-panel-elevated);
   border: 1px solid var(--border-subtle);
@@ -302,6 +353,9 @@ body.studio-theme {
   box-shadow: var(--shadow-dock);
   z-index: 50;
   width: 185px; /* 30% wider */
+  max-height: calc(100% - 2.5rem);
+  overflow-y: auto;
+  scrollbar-width: thin;
 }
 
 .palette-section {
@@ -800,20 +854,27 @@ body.studio-theme {
   border-color: var(--amber);
 }
 
-.btn-store-slide {
-  background: var(--amber);
-  color: #000000;
-  border: none;
-  font-weight: 700;
-  font-size: 0.92rem;
-  padding: 0.6rem 1.2rem;
+.slide-save-status {
+  min-width: 5rem;
+  color: var(--text-dim);
+  font-size: 0.76rem;
+  white-space: nowrap;
+}
+
+.btn-new-slide {
+  padding: 0.6rem 0.85rem;
+  border: 1px solid var(--border-subtle);
   border-radius: 8px;
+  background: var(--bg-panel-elevated);
+  color: var(--text-main);
+  font-weight: 700;
   cursor: pointer;
   white-space: nowrap;
-  transition: all 0.15s ease;
 }
-.btn-store-slide:hover {
-  background: #eab308;
+
+.btn-new-slide:hover {
+  border-color: var(--amber);
+  color: var(--amber);
 }
 
 /* ========================================================
@@ -1012,6 +1073,124 @@ body.studio-theme {
 }
 
 /* ========================================================
+   AUTHENTICATION GATE
+   ======================================================== */
+.auth-gate {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  background: rgba(13, 15, 20, 0.72);
+  backdrop-filter: blur(8px);
+}
+
+.auth-card {
+  width: min(100%, 420px);
+  padding: 2rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 16px;
+  background: var(--bg-panel);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.38);
+  user-select: text;
+}
+
+.auth-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1.7rem;
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+.auth-card h1 {
+  margin-bottom: 0.45rem;
+  font-size: 1.5rem;
+}
+
+.auth-subtitle {
+  margin-bottom: 1.4rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.auth-form label {
+  margin-top: 0.45rem;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.auth-form input {
+  width: 100%;
+  padding: 0.75rem 0.85rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 7px;
+  background: var(--bg-panel-elevated);
+  color: var(--text-main);
+  font: inherit;
+  outline: none;
+}
+
+.auth-form input:focus {
+  border-color: var(--border-active);
+}
+
+.auth-submit {
+  margin-top: 1rem;
+  padding: 0.78rem 1rem;
+  border: 1px solid var(--amber);
+  border-radius: 7px;
+  background: var(--amber);
+  color: #111827;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.auth-submit:hover {
+  filter: brightness(1.08);
+}
+
+.auth-error {
+  margin-top: 0.7rem;
+  color: var(--red);
+  font-size: 0.88rem;
+}
+
+.auth-user-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.btn-logout {
+  padding: 0.35rem 0.6rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 5px;
+  background: var(--bg-panel-elevated);
+  color: var(--text-main);
+  cursor: pointer;
+}
+
+.btn-logout:hover {
+  border-color: var(--red);
+  color: var(--red);
+}
+
+/* ========================================================
    9. PRESENTATION TITLE, SHARE BUTTON, DELETE SLIDE & QR MODAL
    ======================================================== */
 .pres-title-box-top {
@@ -1197,6 +1376,28 @@ body.studio-theme {
 }
 .btn-copy-url:hover {
   background: #eab308;
+}
+
+.share-tools-row {
+  width: 100%;
+  flex-wrap: wrap;
+}
+
+.btn-share-tool {
+  flex: 1 1 12rem;
+  padding: 0.6rem 0.8rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: var(--bg-panel-elevated);
+  color: var(--text-main);
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.btn-share-tool:hover {
+  border-color: var(--amber);
+  color: var(--amber);
 }
 
 .btn-open-public-link {

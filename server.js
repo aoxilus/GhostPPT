@@ -1,5 +1,6 @@
 const express = require('express');
 const session = require('express-session');
+const crypto = require('crypto');
 const path = require('path');
 const fs = require('fs');
 const multer = require('multer');
@@ -8,6 +9,7 @@ const db = require('./db');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const sessionSecret = process.env.GHOSTPPT_SESSION_SECRET || crypto.randomBytes(32).toString('hex');
 
 // Ensure upload directory exists
 const uploadsDir = path.join(__dirname, 'uploads');
@@ -49,7 +51,7 @@ app.use(express.urlencoded({ extended: true }));
 // Session middleware (using in-memory store for instant responsiveness)
 app.use(
   session({
-    secret: 'ghostppt-super-secure-key-2026-obsidian',
+    secret: sessionSecret,
     resave: false,
     saveUninitialized: false,
     cookie: {
@@ -232,7 +234,7 @@ app.get('/api/presentations/:id', (req, res) => {
   }
 });
 
-app.post('/api/presentations', (req, res) => {
+app.post('/api/presentations', requireAuth, (req, res) => {
   upload.single('modelFile')(req, res, err => {
     if (err) {
       return res.status(400).json({ error: err.message });
@@ -255,7 +257,7 @@ app.post('/api/presentations', (req, res) => {
       return res.status(400).json({ error: 'Debes subir un archivo 3D o seleccionar uno existente' });
     }
 
-    const userId = req.session.userId || 1; // Default to admin/prof if guest
+    const userId = req.session.userId;
 
     try {
       const stmt = db.prepare(`
@@ -291,7 +293,7 @@ app.post('/api/presentations', (req, res) => {
         0, 3, 8,
         0, 0, 0,
         null, null, null, null,
-        'plain', '[]'
+        'metal:#e2e8f0', '[]'
       );
 
       res.status(201).json({ id: presId, message: 'Presentación creada con éxito' });
@@ -301,7 +303,7 @@ app.post('/api/presentations', (req, res) => {
   });
 });
 
-app.put('/api/presentations/:id', (req, res) => {
+app.put('/api/presentations/:id', requireAuth, (req, res) => {
   const { title, description, category } = req.body;
   const presId = req.params.id;
   try {
@@ -318,7 +320,7 @@ app.put('/api/presentations/:id', (req, res) => {
   }
 });
 
-app.delete('/api/presentations/:id', (req, res) => {
+app.delete('/api/presentations/:id', requireAuth, (req, res) => {
   const presId = req.params.id;
   try {
     db.prepare('DELETE FROM presentations WHERE id = ?').run(presId);
@@ -331,7 +333,7 @@ app.delete('/api/presentations/:id', (req, res) => {
 // ----------------------------------------------------
 // SLIDES ENDPOINTS (CÁMARA, FLECHAS 3D, MATERIALES, MARCADORES)
 // ----------------------------------------------------
-app.post('/api/presentations/:id/slides', (req, res) => {
+app.post('/api/presentations/:id/slides', requireAuth, (req, res) => {
   const presId = req.params.id;
   const {
     title,
@@ -381,7 +383,7 @@ app.post('/api/presentations/:id/slides', (req, res) => {
       marker_y !== undefined && marker_y !== null ? Number(marker_y) : null,
       marker_z !== undefined && marker_z !== null ? Number(marker_z) : null,
       marker_label || null,
-      view_mode || 'plain',
+      view_mode || 'metal:#e2e8f0',
       arrowsStr,
       Number(rot_x) || 0,
       Number(rot_y) || 0,
@@ -405,7 +407,7 @@ app.post('/api/presentations/:id/slides', (req, res) => {
         marker_y: marker_y !== undefined && marker_y !== null ? Number(marker_y) : null,
         marker_z: marker_z !== undefined && marker_z !== null ? Number(marker_z) : null,
         marker_label: marker_label || null,
-        view_mode: view_mode || 'plain',
+        view_mode: view_mode || 'metal:#e2e8f0',
         arrows: typeof arrows === 'string' ? JSON.parse(arrowsStr) : (arrows || []),
         rot_x: Number(rot_x) || 0,
         rot_y: Number(rot_y) || 0,
@@ -417,7 +419,7 @@ app.post('/api/presentations/:id/slides', (req, res) => {
   }
 });
 
-app.put('/api/presentations/:id/slides/:slideId', (req, res) => {
+app.put('/api/presentations/:id/slides/:slideId', requireAuth, (req, res) => {
   const { id: presId, slideId } = req.params;
   const {
     title,
@@ -461,24 +463,24 @@ app.put('/api/presentations/:id/slides/:slideId', (req, res) => {
           rot_z = COALESCE(?, rot_z)
       WHERE id = ? AND presentation_id = ?
     `).run(
-      title,
-      description,
-      step_order,
-      camera_x,
-      camera_y,
-      camera_z,
-      target_x,
-      target_y,
-      target_z,
+      title ?? null,
+      description ?? null,
+      step_order ?? null,
+      camera_x ?? null,
+      camera_y ?? null,
+      camera_z ?? null,
+      target_x ?? null,
+      target_y ?? null,
+      target_z ?? null,
       marker_x !== undefined ? marker_x : existing.marker_x,
       marker_y !== undefined ? marker_y : existing.marker_y,
       marker_z !== undefined ? marker_z : existing.marker_z,
       marker_label !== undefined ? marker_label : existing.marker_label,
-      view_mode,
+      view_mode ?? null,
       arrowsStr,
-      rot_x,
-      rot_y,
-      rot_z,
+      rot_x ?? null,
+      rot_y ?? null,
+      rot_z ?? null,
       slideId,
       presId
     );
@@ -489,7 +491,7 @@ app.put('/api/presentations/:id/slides/:slideId', (req, res) => {
   }
 });
 
-app.delete('/api/presentations/:id/slides/:slideId', (req, res) => {
+app.delete('/api/presentations/:id/slides/:slideId', requireAuth, (req, res) => {
   const { id: presId, slideId } = req.params;
   try {
     db.prepare('DELETE FROM slides WHERE id = ? AND presentation_id = ?').run(slideId, presId);
@@ -500,7 +502,7 @@ app.delete('/api/presentations/:id/slides/:slideId', (req, res) => {
 });
 
 // Reorder slides
-app.post('/api/presentations/:id/slides/reorder', (req, res) => {
+app.post('/api/presentations/:id/slides/reorder', requireAuth, (req, res) => {
   const presId = req.params.id;
   const { slideIds } = req.body; // Array of IDs in order
   if (!Array.isArray(slideIds)) {
@@ -516,6 +518,12 @@ app.post('/api/presentations/:id/slides/reorder', (req, res) => {
   } catch (err) {
     res.status(500).json({ error: 'Error al reordenar slides: ' + err.message });
   }
+});
+
+// Descriptive public viewer URL:
+// /user/:user/collection/:collection/presentation/:presentation/item/:id
+app.get('/user/:username/collection/:collection/presentation/:presentation/item/:id', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'view.html'));
 });
 
 // Single Page Application Fallback

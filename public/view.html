@@ -1,9 +1,21 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="en">
 <head>
+  <script>
+    (() => {
+      const path = window.location.pathname;
+      const userRoute = path.indexOf('/user/');
+      const basePath = userRoute >= 0
+        ? path.slice(0, userRoute + 1)
+        : (path.slice(0, path.lastIndexOf('/') + 1) || '/');
+      const base = document.createElement('base');
+      base.href = basePath;
+      document.head.appendChild(base);
+    })();
+  </script>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>GhostPPT 3D — Visor Público</title>
+  <title>GhostPPT 3D — Public Viewer</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -27,6 +39,52 @@
       justify-content: space-between;
       padding: 0 1.5rem;
       z-index: 100;
+    }
+    .public-background-picker {
+      position: relative;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      color: var(--text-secondary);
+      font-size: 0.78rem;
+      font-weight: 700;
+    }
+    .public-background-picker .studio-select {
+      min-width: 130px;
+      padding: 0.35rem 0.55rem;
+      font-size: 0.78rem;
+    }
+    .public-background-colors {
+      position: absolute;
+      top: calc(100% + 0.5rem);
+      right: 0;
+      z-index: 120;
+      display: flex;
+      flex-direction: column;
+      gap: 0.45rem;
+      min-width: 178px;
+      padding: 0.65rem;
+      border: 1px solid var(--border-subtle);
+      border-radius: 8px;
+      background: var(--bg-panel);
+      box-shadow: var(--shadow-card);
+    }
+    .public-background-color-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.6rem;
+      color: var(--text-secondary);
+      font-size: 0.76rem;
+    }
+    .public-background-color-row input[type="color"] {
+      width: 34px;
+      height: 26px;
+      padding: 2px;
+      border: 1px solid var(--border-subtle);
+      border-radius: 5px;
+      background: var(--bg-panel-elevated);
+      cursor: pointer;
     }
     .public-viewport {
       flex: 1;
@@ -69,11 +127,36 @@
         <span class="brand-badge">3D</span>
         <span class="brand-name">Ghost<strong>PPT</strong></span>
       </div>
-      <h2 id="public-pres-title" style="font-size: 1.1rem; font-weight: 700; margin-left: 1rem;">Cargando presentación...</h2>
+      <h2 id="public-pres-title" style="font-size: 1.1rem; font-weight: 700; margin-left: 1rem;">Loading presentation...</h2>
     </div>
     <div class="topbar-right">
-      <button id="btn-public-theme" class="btn-theme">☀️ Claro</button>
-      <div class="pres-step-pill" id="public-step-pill">Slide 1 de 1</div>
+      <div class="public-background-picker">
+        <label for="public-background-style">Background</label>
+        <select id="public-background-style" class="studio-select">
+          <option value="white">White</option>
+          <option value="dark">Dark</option>
+          <option value="color">Solid color</option>
+          <option value="gradient">Gradient</option>
+        </select>
+        <div id="public-background-colors" class="public-background-colors hidden">
+          <div id="public-solid-color-row" class="public-background-color-row">
+            <label for="public-background-color">Color</label>
+            <input type="color" id="public-background-color" value="#f8fafc">
+          </div>
+          <div id="public-gradient-color-rows" class="hidden">
+            <div class="public-background-color-row">
+              <label for="public-gradient-start">Start</label>
+              <input type="color" id="public-gradient-start" value="#dbeafe">
+            </div>
+            <div class="public-background-color-row">
+              <label for="public-gradient-end">End</label>
+              <input type="color" id="public-gradient-end" value="#fbbf24">
+            </div>
+          </div>
+        </div>
+      </div>
+      <button id="btn-public-theme" class="btn-theme">☀️ Light</button>
+      <div class="pres-step-pill" id="public-step-pill">Slide 1 of 1</div>
     </div>
   </header>
 
@@ -83,16 +166,16 @@
 
     <!-- NOTES CARD OVERLAY -->
     <div class="public-notes-overlay" id="public-notes-box">
-      <h3 id="public-slide-title" style="font-size: 1.15rem; font-weight: 700; margin-bottom: 0.35rem;">1. Vista Inicial</h3>
-      <p id="public-slide-description" style="font-size: 0.95rem; color: var(--text-secondary); line-height: 1.45;">Cargando notas de la diapositiva...</p>
+      <h3 id="public-slide-title" style="font-size: 1.15rem; font-weight: 700; margin-bottom: 0.35rem;">1. Initial View</h3>
+      <p id="public-slide-description" style="font-size: 0.95rem; color: var(--text-secondary); line-height: 1.45;">Loading slide notes...</p>
     </div>
   </div>
 
   <!-- PUBLIC FOOTER CONTROLS -->
   <footer class="public-footer">
-    <button id="btn-public-prev" class="btn-pres-ctrl">◀ Anterior</button>
+    <button id="btn-public-prev" class="btn-pres-ctrl">◀ Previous</button>
     <div class="timeline-slides" id="public-slides-strip"></div>
-    <button id="btn-public-next" class="btn-pres-ctrl">Siguiente ▶</button>
+    <button id="btn-public-next" class="btn-pres-ctrl">Next ▶</button>
   </footer>
 
   <script type="module" src="js/public-viewer.js"></script>

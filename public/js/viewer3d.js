@@ -130,9 +130,9 @@ export class Viewer3D {
         side: THREE.DoubleSide
       }),
       metal: new THREE.MeshStandardMaterial({
-        color: 0x93c5fd, // Default Titanium Blue
-        metalness: 0.72, // Balanced metalness: rich diffuse color visibility without pitch-black specular falloff
-        roughness: 0.24, // Smooth metallic luster with wide specular highlight
+        color: 0xe2e8f0, // Default Silver Chrome
+        metalness: 0.84,
+        roughness: 0.28,
         side: THREE.DoubleSide
       }),
       squares: new THREE.MeshStandardMaterial({
@@ -174,7 +174,8 @@ export class Viewer3D {
         side: THREE.DoubleSide
       })
     };
-    this.currentViewMode = 'plain';
+    this.currentMetallicColor = '#e2e8f0';
+    this.currentViewMode = 'metal';
 
     // 3D Arrows
     this.arrowStep = 0; // 0 = ready, 1 = origin set, picking destination
@@ -217,7 +218,11 @@ export class Viewer3D {
     this.camera = new THREE.PerspectiveCamera(45, width / height, 0.05, 1500);
     this.camera.position.set(0, 1.5, 7.5);
 
-    this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+    this.renderer = new THREE.WebGLRenderer({
+      antialias: true,
+      alpha: true,
+      powerPreference: 'high-performance'
+    });
     this.renderer.setSize(width, height);
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.container.appendChild(this.renderer.domElement);
@@ -228,26 +233,26 @@ export class Viewer3D {
     this.controls.screenSpacePanning = true;
 
     // 360° Studio Lighting (Bright, soft fill with zero pitch-black shadows)
-    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x94a3b8, 0.9);
+    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x94a3b8, 0.55);
     hemiLight.position.set(0, 20, 0);
     this.scene.add(hemiLight);
 
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.35);
     this.scene.add(ambientLight);
 
-    const keyLight = new THREE.DirectionalLight(0xffffff, 0.95);
+    const keyLight = new THREE.DirectionalLight(0xffffff, 0.72);
     keyLight.position.set(8, 14, 10);
     this.scene.add(keyLight);
 
-    const fillLight = new THREE.DirectionalLight(0xdbeafe, 0.65);
+    const fillLight = new THREE.DirectionalLight(0xdbeafe, 0.32);
     fillLight.position.set(-8, -4, -8);
     this.scene.add(fillLight);
 
-    const frontLight = new THREE.DirectionalLight(0xffffff, 0.45);
+    const frontLight = new THREE.DirectionalLight(0xffffff, 0.24);
     frontLight.position.set(0, 4, 12);
     this.scene.add(frontLight);
 
-    const rimLight = new THREE.DirectionalLight(0x93c5fd, 0.4);
+    const rimLight = new THREE.DirectionalLight(0x93c5fd, 0.22);
     rimLight.position.set(0, -8, 6);
     this.scene.add(rimLight);
 
@@ -645,7 +650,9 @@ export class Viewer3D {
   }
 
   setTheme(theme = 'light') {
+    this.container.style.background = '';
     if (theme === 'light') {
+      this.renderer.setClearColor(0xedf2f7, 1);
       this.scene.background = new THREE.Color(0xedf2f7);
       if (this.gridHelper) {
         this.scene.remove(this.gridHelper);
@@ -654,6 +661,7 @@ export class Viewer3D {
         this.scene.add(this.gridHelper);
       }
     } else {
+      this.renderer.setClearColor(0x13151b, 1);
       this.scene.background = new THREE.Color(0x13151b);
       if (this.gridHelper) {
         this.scene.remove(this.gridHelper);
@@ -662,6 +670,25 @@ export class Viewer3D {
         this.scene.add(this.gridHelper);
       }
     }
+  }
+
+  setBackgroundStyle({
+    mode = 'white',
+    color = '#ffffff',
+    gradientStart = '#dbeafe',
+    gradientEnd = '#fbbf24'
+  } = {}) {
+    if (mode === 'gradient') {
+      this.scene.background = null;
+      this.renderer.setClearColor(0x000000, 0);
+      this.container.style.background = `linear-gradient(135deg, ${gradientStart}, ${gradientEnd})`;
+      return;
+    }
+
+    const backgroundColor = mode === 'dark' ? '#13151b' : mode === 'white' ? '#ffffff' : color;
+    this.container.style.background = backgroundColor;
+    this.renderer.setClearColor(backgroundColor, 1);
+    this.scene.background = new THREE.Color(backgroundColor);
   }
 
   // Rotations (+90° on X, Y, Z) with Auto-Grounding & Camera Re-fit

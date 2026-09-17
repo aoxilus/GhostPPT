@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -13,6 +13,26 @@
 </head>
 <body class="studio-theme" data-theme="light">
 
+  <!-- AUTHENTICATION GATE -->
+  <div id="login-gate" class="auth-gate">
+    <div class="auth-card">
+      <div class="auth-brand">
+        <span class="brand-badge">3D</span>
+        <span class="brand-name">Ghost<strong>PPT</strong></span>
+      </div>
+      <h1>Sign in</h1>
+      <p class="auth-subtitle">Access the 3D studio to edit your presentations.</p>
+      <form id="form-login" class="auth-form">
+        <label for="login-username">Username</label>
+        <input type="text" id="login-username" autocomplete="username" placeholder="oscar" required>
+        <label for="login-password">Password</label>
+        <input type="password" id="login-password" autocomplete="current-password" placeholder="Password" required>
+        <button type="submit" class="auth-submit">Enter studio</button>
+        <p id="login-error" class="auth-error hidden"></p>
+      </form>
+    </div>
+  </div>
+
   <!-- STUDIO TOP BAR (2 ROWS FOR OPTIMAL ERGONOMICS) -->
   <header class="studio-topbar-2row">
     
@@ -25,44 +45,75 @@
         </div>
 
         <nav class="view-switch">
-          <button id="tab-btn-editor" class="view-tab active" data-tab="editor" data-i18n="tab_editor">Editor 3D</button>
-          <button id="tab-btn-presentation" class="view-tab" data-tab="presentation" data-i18n="tab_presentation">Presentación</button>
-          <button id="tab-btn-models" class="view-tab" data-tab="models" data-i18n="tab_models">Archivos 3D</button>
+          <button id="tab-btn-editor" class="view-tab active" data-tab="editor" data-i18n="tab_editor">3D Editor</button>
+          <button id="tab-btn-presentation" class="view-tab" data-tab="presentation" data-i18n="tab_presentation">Presentation</button>
+          <button id="tab-btn-models" class="view-tab" data-tab="models" data-i18n="tab_models">3D Files</button>
         </nav>
       </div>
 
       <div class="topbar-right">
         <!-- DIRECT EN / ES TOGGLE BUTTON -->
-        <button id="btn-lang-toggle" class="btn-lang" title="Cambiar Idioma / Switch Language">
-          <span>🌐 <strong id="current-lang-text">ES</strong></span>
+        <button id="btn-lang-toggle" class="btn-lang" title="Switch language">
+          <span>🌐 <strong id="current-lang-text">EN</strong></span>
         </button>
         <div class="divider-v"></div>
-        <button id="btn-theme-toggle" class="btn-theme" title="Alternar Modo Claro / Oscuro">☀️ Claro</button>
+        <div class="editor-background-picker">
+          <label for="editor-background-style" data-i18n="background_label">Background</label>
+          <select id="editor-background-style" class="studio-select">
+            <option value="white" data-i18n="background_white">White</option>
+            <option value="dark" data-i18n="background_dark">Dark</option>
+            <option value="color" data-i18n="background_color">Solid color</option>
+            <option value="gradient" data-i18n="background_gradient">Gradient</option>
+          </select>
+          <div id="editor-background-colors" class="editor-background-colors hidden">
+            <div id="editor-solid-color-row" class="editor-background-color-row">
+              <label for="editor-background-color" data-i18n="background_color_label">Color</label>
+              <input type="color" id="editor-background-color" value="#f8fafc">
+            </div>
+            <div id="editor-gradient-color-rows" class="hidden">
+              <div class="editor-background-color-row">
+                <label for="editor-gradient-start" data-i18n="background_start">Start</label>
+                <input type="color" id="editor-gradient-start" value="#dbeafe">
+              </div>
+              <div class="editor-background-color-row">
+                <label for="editor-gradient-end" data-i18n="background_end">End</label>
+                <input type="color" id="editor-gradient-end" value="#fbbf24">
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="divider-v"></div>
+        <button id="btn-theme-toggle" class="btn-theme" title="Toggle light / dark mode">☀️ Light</button>
         <div class="divider-v"></div>
         <button id="btn-share-pres" class="btn-topbar btn-share-accent" title="Generar enlace público y código QR para ver sin login" data-i18n="btn_share">🔗 Compartir / QR</button>
+        <div id="auth-user-controls" class="auth-user-controls hidden">
+          <span id="auth-user-name"></span>
+          <button id="btn-logout" class="btn-logout" type="button">Salir</button>
+        </div>
       </div>
     </div>
 
-    <!-- ROW 2: PRESENTATION TITLE, ACTIVE MODEL SELECTOR & 3D HUD -->
+    <!-- ROW 2: PRESENTATION SELECTOR, ACTIVE MODEL SELECTOR & 3D HUD -->
     <div class="topbar-row topbar-row-2">
       <div class="topbar-left">
         <div class="pres-title-box-top">
-          <span class="pres-title-label" data-i18n="pres_label">Presentación:</span>
-          <span class="pres-title-display" id="display-pres-title">Mi Presentación</span>
-          <button id="btn-rename-pres" class="btn-tiny btn-rename-icon" title="Cambiar nombre de la presentación">✏️</button>
+          <label class="pres-title-label" for="select-header-presentation" data-i18n="pres_label">Presentation:</label>
+          <select id="select-header-presentation" class="studio-select presentation-select" aria-label="Presentation selector">
+            <option value="">Loading presentations...</option>
+          </select>
+          <span class="pres-title-display hidden" id="display-pres-title">My Presentation</span>
+          <button id="btn-rename-pres" class="btn-tiny btn-rename-icon" title="Rename the current presentation">✏️</button>
         </div>
         <div class="divider-v"></div>
         <div class="model-picker">
           <label for="select-active-model" data-i18n="model_label">Modelo:</label>
           <select id="select-active-model" class="studio-select">
-            <option value="">Cargando modelos...</option>
+            <option value="">Loading models...</option>
           </select>
         </div>
       </div>
 
       <div class="topbar-right">
-        <button id="btn-quick-autocenter" class="btn-topbar" title="Auto-centrar modelo y ajustar cámara" data-i18n="btn_autocenter">🎯 Auto Center</button>
-        <div class="divider-v"></div>
         <div class="cam-badge" id="hud-cam-display">CAM: X:0.0 Y:1.5 Z:7.5</div>
       </div>
     </div>
@@ -157,8 +208,8 @@
         <div class="palette-section">
           <span class="palette-label" data-i18n="label_material">Material</span>
           <div class="mat-pills-col">
-            <button class="mat-pill active" data-mat="plain" data-i18n="mat_plain">Mate</button>
-            <button class="mat-pill" data-mat="metal" data-i18n="mat_metal">Metálico</button>
+            <button class="mat-pill" data-mat="plain" data-i18n="mat_plain">Mate</button>
+            <button class="mat-pill active" data-mat="metal" data-i18n="mat_metal">Metálico</button>
             <button class="mat-pill" data-mat="squares" title="Estilo Cuadros Tanjiro (Verde y Negro)" data-i18n="mat_squares">🏁 Cuadros</button>
             <button class="mat-pill" data-mat="rock" title="Textura de Roca / Granito" data-i18n="mat_rock">🪨 Roca</button>
           </div>
@@ -167,12 +218,12 @@
           <div class="metal-swatches-section" id="section-metal-colors">
             <span class="wireframe-sublabel" data-i18n="label_metal_color">Tono Metálico:</span>
             <div class="wireframe-swatches-row">
-              <button class="swatch-btn swatch-metal-blue active" data-metal-color="#93c5fd" title="Titanio Azulado (Plateado Azul)"></button>
-              <button class="swatch-btn swatch-metal-silver" data-metal-color="#e2e8f0" title="Plata / Cromo Puro"></button>
+              <button class="swatch-btn swatch-metal-blue" data-metal-color="#93c5fd" title="Titanio Azulado (Plateado Azul)"></button>
+              <button class="swatch-btn swatch-metal-silver active" data-metal-color="#e2e8f0" title="Plata / Cromo Puro"></button>
               <button class="swatch-btn swatch-metal-gold" data-metal-color="#fbbf24" title="Oro / Latón"></button>
               <button class="swatch-btn swatch-metal-copper" data-metal-color="#f87171" title="Cobre / Oro Rosa"></button>
               <label class="swatch-picker-label" title="Seleccionar Color Metálico Personalizado">
-                <input type="color" id="metal-custom-color-picker" value="#93c5fd" class="swatch-color-input">
+                <input type="color" id="metal-custom-color-picker" value="#e2e8f0" class="swatch-color-input">
                 <span class="picker-glyph">🎨</span>
               </label>
             </div>
@@ -191,7 +242,7 @@
       </aside>
     </div>
 
-    <!-- BOTTOM SLIDE TIMELINE & SAVE DOCK WITH < > SCROLL ARROWS -->
+    <!-- BOTTOM SLIDE TIMELINE & AUTOSAVE DOCK WITH < > NAVIGATION -->
     <footer class="studio-timeline-dock">
       
       <!-- CAROUSEL ARROW < -->
@@ -205,18 +256,19 @@
       <!-- CAROUSEL ARROW > -->
       <button id="btn-scroll-timeline-next" class="timeline-nav-arrow" title="Desplazar slides a la derecha">▶</button>
 
-      <!-- SAVE SLIDE & ELEMENT CONTINUITY CONTROLS -->
+      <!-- SLIDE SELECTOR, NEW SLIDE & AUTOSAVE STATUS -->
       <div class="save-controls">
-        <label class="chk-copy-wrap" title="Si está marcado, las flechas y textos actuales se copiarán al crear el siguiente slide">
+        <label class="chk-copy-wrap" title="Copy the current arrows and text into the next slide">
           <input type="checkbox" id="chk-copy-elements">
-          <span data-i18n="copy_elements">Copiar elementos al siguiente</span>
+          <span data-i18n="copy_elements">Copy elements to next slide</span>
         </label>
-        <input type="text" id="input-new-slide-title" placeholder="Nombre de este slide..." class="slide-name-input">
-        <button id="btn-save-current-slide" class="btn-store-slide" title="Guarda la vista actual como un nuevo slide">
-          <span data-i18n="btn_save_slide">💾 Guardar Slide</span>
+        <input type="text" id="input-new-slide-title" placeholder="Current slide title..." class="slide-name-input">
+        <span id="slide-save-status" class="slide-save-status" aria-live="polite"></span>
+        <button id="btn-new-slide" class="btn-new-slide" type="button" title="Create a new slide">
+          <span data-i18n="new_slide">➕ New Slide</span>
         </button>
-        <button id="btn-delete-active-slide" class="btn-delete-slide-action" title="Eliminar el slide actualmente seleccionado">
-          <span data-i18n="btn_del_slide">🗑️ Borrar Slide</span>
+        <button id="btn-delete-active-slide" class="btn-delete-slide-action" title="Delete the current slide">
+          <span data-i18n="btn_del_slide">🗑️ Delete Slide</span>
         </button>
       </div>
 
@@ -300,6 +352,11 @@
         <div class="share-url-row">
           <input type="text" id="share-public-url" readonly class="share-url-input">
           <button id="btn-copy-share-url" class="btn-copy-url" data-i18n="btn_copy_link">📋 Copiar Link</button>
+        </div>
+
+        <div class="share-actions-row share-tools-row">
+          <button id="btn-download-qr" class="btn-share-tool" type="button" data-i18n="btn_download_qr">⬇️ Descargar QR para PowerPoint</button>
+          <button id="btn-copy-embed" class="btn-share-tool" type="button" data-i18n="btn_copy_embed">🌐 Copiar HTML para website</button>
         </div>
 
         <div class="share-actions-row">

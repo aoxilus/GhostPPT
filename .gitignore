@@ -1,4 +1,8 @@
 node_modules/
+.env
+.env.*
+!.env.example
+*.secret
 database.sqlite-wal
 database.sqlite-shm
 .tempmediaStorage/
@@ -7,3 +11,4 @@ database.sqlite-shm
 Thumbs.db
 repo_3d_obj_viewer_show/
 ghostppt.db
+database.sqlite
