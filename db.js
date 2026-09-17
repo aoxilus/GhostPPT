@@ -82,6 +82,8 @@ function initDB() {
   ensureSlideColumn('object_x', 'object_x REAL NOT NULL DEFAULT 0');
   ensureSlideColumn('object_y', 'object_y REAL NOT NULL DEFAULT 0');
   ensureSlideColumn('object_z', 'object_z REAL NOT NULL DEFAULT 0');
+  ensureSlideColumn('model_filename', 'model_filename TEXT');
+  ensureSlideColumn('model_format', 'model_format TEXT');
 
   // Check if we need to seed demo data
   const userCountRow = db.prepare('SELECT COUNT(*) as count FROM users').get();
@@ -260,6 +262,22 @@ function initDB() {
         GROUP BY presentation_id
       );
       PRAGMA user_version = 3;
+    `);
+  }
+
+  // Per-slide models: backfill from presentation cover model.
+  const versionAfterChrome = db.prepare('PRAGMA user_version').get().user_version || 0;
+  if (versionAfterChrome < 4) {
+    db.exec(`
+      UPDATE slides
+      SET model_filename = (
+            SELECT p.model_filename FROM presentations p WHERE p.id = slides.presentation_id
+          ),
+          model_format = (
+            SELECT p.model_format FROM presentations p WHERE p.id = slides.presentation_id
+          )
+      WHERE model_filename IS NULL OR TRIM(model_filename) = '';
+      PRAGMA user_version = 4;
     `);
   }
 }

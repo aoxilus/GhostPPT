@@ -106,7 +106,7 @@
         </div>
         <div class="divider-v"></div>
         <div class="model-picker">
-          <label for="select-active-model" data-i18n="model_label">Modelo:</label>
+          <label for="select-active-model" data-i18n="model_label">Modelo del slide:</label>
           <select id="select-active-model" class="studio-select">
             <option value="">Loading models...</option>
           </select>
@@ -317,7 +317,7 @@
       </div>
 
       <div class="upload-dropzone">
-        <input type="file" id="model-file-upload-input" accept=".stl,.obj" class="hidden">
+        <input type="file" id="model-file-upload-input" accept=".stl,.obj" class="hidden" multiple>
         <div class="dropzone-box" id="dropzone-trigger">
           <span class="dropzone-icon">📁</span>
           <h3 data-i18n="dropzone_title">Arrastra un archivo .STL o .OBJ aquí</h3>

@@ -147,12 +147,79 @@ function withTransaction(work) {
   }
 }
 
-function buildSlidePayload(body = {}) {
+function listLibraryModels() {
+  if (!fs.existsSync(uploadsDir)) return [];
+  return fs.readdirSync(uploadsDir)
+    .filter((f) => {
+      const ext = path.extname(f).toLowerCase();
+      return ext === '.obj' || ext === '.stl';
+    })
+    .map((f) => {
+      const stat = fs.statSync(path.join(uploadsDir, f));
+      return {
+        filename: f,
+        format: path.extname(f).toLowerCase().replace('.', ''),
+        sizeBytes: stat.size,
+        modified: stat.mtime
+      };
+    })
+    .sort((a, b) => String(a.filename).localeCompare(String(b.filename)));
+}
+
+function resolveLibraryModel(filename) {
+  if (!filename) return null;
+  const safeName = path.basename(String(filename));
+  if (!safeName || safeName !== String(filename).replace(/^.*[\\/]/, '')) {
+    // Still accept basename-normalized names from clients
+  }
+  const resolved = path.basename(safeName);
+  const fullPath = path.join(uploadsDir, resolved);
+  if (!fs.existsSync(fullPath)) {
+    throw new Error(`El modelo "${resolved}" no existe en la biblioteca`);
+  }
+  const format = path.extname(resolved).toLowerCase().replace('.', '');
+  if (format !== 'obj' && format !== 'stl') {
+    throw new Error('Solo se permiten modelos .obj o .stl');
+  }
+  return { model_filename: resolved, model_format: format };
+}
+
+function syncPresentationCover(presId) {
+  const first = db.prepare(`
+    SELECT model_filename, model_format
+    FROM slides
+    WHERE presentation_id = ?
+    ORDER BY step_order ASC, id ASC
+    LIMIT 1
+  `).get(presId);
+  if (!first?.model_filename) return;
+  db.prepare(`
+    UPDATE presentations
+    SET model_filename = ?, model_format = ?
+    WHERE id = ?
+  `).run(first.model_filename, first.model_format || path.extname(first.model_filename).replace('.', ''), presId);
+}
+
+function buildSlidePayload(body = {}, { requireModel = false } = {}) {
   const title = normalizeTitle(body.title);
   if (!title) {
     throw new Error('El título del slide es requerido');
   }
   const arrows = normalizeArrows(body.arrows);
+  let model_filename = body.model_filename == null ? null : String(body.model_filename).trim();
+  let model_format = body.model_format == null ? null : String(body.model_format).trim().toLowerCase();
+
+  if (model_filename) {
+    const resolved = resolveLibraryModel(model_filename);
+    model_filename = resolved.model_filename;
+    model_format = resolved.model_format;
+  } else if (requireModel) {
+    throw new Error('El modelo del slide es requerido');
+  } else {
+    model_filename = null;
+    model_format = null;
+  }
+
   return {
     title,
     description: String(body.description || '').trim(),
@@ -175,7 +242,9 @@ function buildSlidePayload(body = {}) {
     rot_x: asFiniteNumber(body.rot_x, 0),
     rot_y: asFiniteNumber(body.rot_y, 0),
     rot_z: asFiniteNumber(body.rot_z, 0),
-    step_order: body.step_order == null ? null : asFiniteNumber(body.step_order, null)
+    step_order: body.step_order == null ? null : asFiniteNumber(body.step_order, null),
+    model_filename,
+    model_format
   };
 }
 
@@ -259,27 +328,39 @@ app.post('/api/auth/logout', (req, res) => {
 });
 
 // ----------------------------------------------------
-// MODELS REPOSITORY LIST
+// MODELS REPOSITORY LIST / LIBRARY UPLOAD
 // ----------------------------------------------------
 app.get('/api/models', (req, res) => {
   try {
-    const files = fs.readdirSync(uploadsDir);
-    const modelFiles = files.filter(f => {
-      const ext = path.extname(f).toLowerCase();
-      return ext === '.obj' || ext === '.stl';
-    }).map(f => {
-      const stat = fs.statSync(path.join(uploadsDir, f));
-      return {
-        filename: f,
-        format: path.extname(f).toLowerCase().replace('.', ''),
-        sizeBytes: stat.size,
-        modified: stat.mtime
-      };
-    });
-    res.json({ models: modelFiles });
+    res.json({ models: listLibraryModels() });
   } catch (err) {
     res.status(500).json({ error: 'Error al leer modelos: ' + err.message });
   }
+});
+
+app.post('/api/models', requireAuth, requireProfessor, (req, res) => {
+  upload.fields([
+    { name: 'modelFiles', maxCount: 40 },
+    { name: 'modelFile', maxCount: 40 }
+  ])(req, res, (err) => {
+    if (err) {
+      return res.status(400).json({ error: err.message });
+    }
+    const files = [
+      ...(req.files?.modelFiles || []),
+      ...(req.files?.modelFile || [])
+    ];
+    if (files.length === 0) {
+      return res.status(400).json({ error: 'Sube al menos un archivo .obj o .stl' });
+    }
+    const models = files.map((file) => ({
+      filename: file.filename,
+      format: path.extname(file.filename).toLowerCase().replace('.', ''),
+      sizeBytes: file.size,
+      originalName: file.originalname
+    }));
+    res.status(201).json({ models, message: `${models.length} modelo(s) añadidos a la biblioteca` });
+  });
 });
 
 // ----------------------------------------------------
@@ -332,6 +413,8 @@ app.get('/api/presentations/:id', (req, res) => {
       }
       return {
         ...s,
+        model_filename: s.model_filename || pres.model_filename,
+        model_format: s.model_format || pres.model_format,
         arrows: parsedArrows
       };
     });
@@ -356,19 +439,26 @@ app.post('/api/presentations', requireAuth, requireProfessor, (req, res) => {
     let modelFilename = '';
     let modelFormat = 'obj';
 
-    if (req.file) {
-      modelFilename = req.file.filename;
-      modelFormat = path.extname(req.file.filename).toLowerCase().replace('.', '');
-    } else if (existing_filename) {
-      const safeName = path.basename(String(existing_filename));
-      const existingPath = path.join(uploadsDir, safeName);
-      if (!fs.existsSync(existingPath)) {
-        return res.status(400).json({ error: 'El modelo seleccionado no existe' });
+    try {
+      if (req.file) {
+        modelFilename = req.file.filename;
+        modelFormat = path.extname(req.file.filename).toLowerCase().replace('.', '');
+      } else if (existing_filename) {
+        const resolved = resolveLibraryModel(existing_filename);
+        modelFilename = resolved.model_filename;
+        modelFormat = resolved.model_format;
+      } else {
+        const library = listLibraryModels();
+        if (library.length === 0) {
+          return res.status(400).json({
+            error: 'La biblioteca 3D está vacía. Sube al menos un STL/OBJ en Archivos 3D antes de crear una presentación.'
+          });
+        }
+        modelFilename = library[0].filename;
+        modelFormat = library[0].format;
       }
-      modelFilename = safeName;
-      modelFormat = path.extname(safeName).toLowerCase().replace('.', '');
-    } else {
-      return res.status(400).json({ error: 'Debes subir un archivo 3D o seleccionar uno existente' });
+    } catch (resolveErr) {
+      return res.status(400).json({ error: resolveErr.message });
     }
 
     const userId = req.session.userId;
@@ -397,8 +487,9 @@ app.post('/api/presentations', requireAuth, requireProfessor, (req, res) => {
             object_x, object_y, object_z,
             marker_x, marker_y, marker_z, marker_label,
             view_mode, arrows,
-            rot_x, rot_y, rot_z
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            rot_x, rot_y, rot_z,
+            model_filename, model_format
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `).run(
           presId, 1,
           '1. Vista General',
@@ -408,7 +499,8 @@ app.post('/api/presentations', requireAuth, requireProfessor, (req, res) => {
           0, 0, 0,
           null, null, null, null,
           'metal:#e2e8f0', '[]',
-          0, 0, 0
+          0, 0, 0,
+          modelFilename, modelFormat
         );
 
         return { id: Number(presId), model_filename: modelFilename, model_format: modelFormat };
@@ -488,7 +580,12 @@ app.post('/api/presentations/:id/slides', requireAuth, requireProfessor, (req, r
       return res.status(404).json({ error: 'Presentación no encontrada o sin permiso' });
     }
 
-    const payload = buildSlidePayload(req.body);
+    const body = { ...req.body };
+    if (!body.model_filename) {
+      body.model_filename = owned.model_filename;
+      body.model_format = owned.model_format;
+    }
+    const payload = buildSlidePayload(body, { requireModel: true });
     const maxOrderRow = db.prepare('SELECT MAX(step_order) as maxOrder FROM slides WHERE presentation_id = ?').get(presId);
     const nextOrder = (maxOrderRow && maxOrderRow.maxOrder !== null) ? maxOrderRow.maxOrder + 1 : 1;
 
@@ -500,8 +597,9 @@ app.post('/api/presentations/:id/slides', requireAuth, requireProfessor, (req, r
         object_x, object_y, object_z,
         marker_x, marker_y, marker_z, marker_label,
         view_mode, arrows,
-        rot_x, rot_y, rot_z
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        rot_x, rot_y, rot_z,
+        model_filename, model_format
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       presId,
       nextOrder,
@@ -524,8 +622,12 @@ app.post('/api/presentations/:id/slides', requireAuth, requireProfessor, (req, r
       payload.arrowsStr,
       payload.rot_x,
       payload.rot_y,
-      payload.rot_z
+      payload.rot_z,
+      payload.model_filename,
+      payload.model_format
     );
+
+    syncPresentationCover(presId);
 
     res.status(201).json({
       slide: {
@@ -551,11 +653,13 @@ app.post('/api/presentations/:id/slides', requireAuth, requireProfessor, (req, r
         arrows: payload.arrows,
         rot_x: payload.rot_x,
         rot_y: payload.rot_y,
-        rot_z: payload.rot_z
+        rot_z: payload.rot_z,
+        model_filename: payload.model_filename,
+        model_format: payload.model_format
       }
     });
   } catch (err) {
-    const status = /requerido|inválid|JSON|array|Flecha/i.test(err.message) ? 400 : 500;
+    const status = /requerido|inválid|JSON|array|Flecha|modelo|biblioteca/i.test(err.message) ? 400 : 500;
     res.status(status).json({ error: 'Error al crear slide: ' + err.message });
   }
 });
@@ -583,8 +687,10 @@ app.put('/api/presentations/:id/slides/:slideId', requireAuth, requireProfessor,
       ...req.body,
       title: req.body.title != null ? req.body.title : existing.title,
       description: req.body.description != null ? req.body.description : existing.description,
-      arrows: req.body.arrows !== undefined ? req.body.arrows : existing.arrows
-    });
+      arrows: req.body.arrows !== undefined ? req.body.arrows : existing.arrows,
+      model_filename: req.body.model_filename !== undefined ? req.body.model_filename : existing.model_filename,
+      model_format: req.body.model_format !== undefined ? req.body.model_format : existing.model_format
+    }, { requireModel: true });
 
     db.prepare(`
       UPDATE slides
@@ -608,7 +714,9 @@ app.put('/api/presentations/:id/slides/:slideId', requireAuth, requireProfessor,
           arrows = ?,
           rot_x = ?,
           rot_y = ?,
-          rot_z = ?
+          rot_z = ?,
+          model_filename = ?,
+          model_format = ?
       WHERE id = ? AND presentation_id = ?
     `).run(
       payload.title,
@@ -632,13 +740,17 @@ app.put('/api/presentations/:id/slides/:slideId', requireAuth, requireProfessor,
       payload.rot_x,
       payload.rot_y,
       payload.rot_z,
+      payload.model_filename,
+      payload.model_format,
       slideId,
       presId
     );
 
+    syncPresentationCover(presId);
+
     res.json({ success: true, message: 'Slide actualizado' });
   } catch (err) {
-    const status = /requerido|inválid|JSON|array|Flecha/i.test(err.message) ? 400 : 500;
+    const status = /requerido|inválid|JSON|array|Flecha|modelo|biblioteca/i.test(err.message) ? 400 : 500;
     res.status(status).json({ error: 'Error al actualizar slide: ' + err.message });
   }
 });
@@ -658,6 +770,7 @@ app.delete('/api/presentations/:id/slides/:slideId', requireAuth, requireProfess
     if (!result.changes) {
       return res.status(404).json({ error: 'Slide no encontrado' });
     }
+    syncPresentationCover(presId);
     res.json({ success: true, message: 'Slide eliminado' });
   } catch (err) {
     res.status(500).json({ error: 'Error al eliminar slide: ' + err.message });
@@ -696,6 +809,28 @@ app.post('/api/presentations/:id/slides/reorder', requireAuth, requireProfessor,
   }
 });
 
+// Public network hints for QR / phone access on the LAN (no auth).
+app.get('/api/public/network', (req, res) => {
+  try {
+    const os = require('os');
+    const nets = os.networkInterfaces();
+    const addresses = [];
+    for (const entries of Object.values(nets)) {
+      for (const net of entries || []) {
+        const family = net.family === 4 || net.family === 'IPv4';
+        if (family && !net.internal) addresses.push(net.address);
+      }
+    }
+    res.json({
+      port: Number(PORT),
+      addresses,
+      hint: 'Use a LAN address in the QR so phones on the same Wi‑Fi can open the viewer without login.'
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Unable to read network interfaces: ' + err.message });
+  }
+});
+
 // Descriptive public viewer URL:
 // /user/:user/collection/:collection/presentation/:presentation/item/:id
 app.get('/user/:username/collection/:collection/presentation/:presentation/item/:id', (req, res) => {
@@ -707,7 +842,8 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// Start Server
-app.listen(PORT, () => {
+// Start Server — bind all interfaces so QR/LAN phones can reach the viewer
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`GhostPPT Server running on http://localhost:${PORT}`);
+  console.log(`LAN viewer (same Wi‑Fi): http://<your-ip>:${PORT}`);
 });

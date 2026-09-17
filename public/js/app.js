@@ -16,8 +16,10 @@ class StudioApp {
     this.tours = [];
     this.currentModel = '';
     this.currentTourId = null;
+    this.currentPresentation = null;
     this.currentSlides = [];
     this.activeSlideIdx = 0;
+    this.presLoadedModel = null;
     this.currentUser = null;
     this.studioInitialized = false;
     this.isApplyingSlide = false;
@@ -47,7 +49,7 @@ class StudioApp {
         tab_models: "Archivos 3D",
         btn_share: "🔗 Compartir / QR",
         pres_label: "Presentación:",
-        model_label: "Modelo:",
+        model_label: "Modelo del slide:",
         background_label: "Fondo",
         background_white: "Blanco",
         background_dark: "Oscuro",
@@ -95,7 +97,7 @@ class StudioApp {
         tab_models: "3D Files",
         btn_share: "🔗 Share / QR",
         pres_label: "Presentation:",
-        model_label: "Model:",
+        model_label: "Slide model:",
         background_label: "Background",
         background_white: "White",
         background_dark: "Dark",
@@ -316,9 +318,13 @@ class StudioApp {
     await this.loadModels();
     await this.loadTours();
 
-    // 4. Default Model in Editor
-    if (this.models.length > 0) {
-      await this.selectModel(this.models[0].filename);
+    // 4. Open last/first presentation (deck), not "first model switches tour"
+    if (this.tours.length > 0) {
+      await this.openPresentation(this.tours[0].id);
+    } else if (this.models.length > 0) {
+      this.currentModel = this.models[0].filename;
+      const modelSelect = document.getElementById('select-active-model');
+      if (modelSelect) modelSelect.value = this.currentModel;
     }
   }
 
@@ -400,11 +406,11 @@ class StudioApp {
       });
     });
 
-    // Model Selector in Topbar
+    // Model Selector in Topbar — assigns model to the *current slide*
     const selectModel = document.getElementById('select-active-model');
     selectModel.addEventListener('change', (e) => {
       if (e.target.value) {
-        this.selectModel(e.target.value);
+        this.assignModelToActiveSlide(e.target.value);
       }
     });
 
@@ -414,9 +420,8 @@ class StudioApp {
         await this.createNewPresentation();
         return;
       }
-      const tour = this.tours.find(t => String(t.id) === String(e.target.value));
-      if (tour) {
-        await this.selectModel(tour.model_filename, tour.id);
+      if (e.target.value) {
+        await this.openPresentation(e.target.value);
       }
     });
 
@@ -616,7 +621,7 @@ class StudioApp {
     });
 
     // Share & Public QR Code Modal
-    const openShareModal = () => {
+    const openShareModal = async () => {
       if (!this.currentTourId) {
         this.showToast('⚠️ Guarda un slide primero para compartir esta presentación');
         return;
@@ -635,13 +640,39 @@ class StudioApp {
       const userSlug = slugify(this.currentUser?.username, 'user');
       const collectionSlug = slugify(currentTour?.category, 'general');
       const presentationSlug = slugify(currentTour?.title, `presentation-${this.currentTourId}`);
-      const publicUrlObject = new URL(
+      const pathUrl = new URL(
         `../user/${userSlug}/collection/${collectionSlug}/presentation/${presentationSlug}/item/${this.currentTourId}`,
         import.meta.url
       );
-      const publicUrl = publicUrlObject.href;
+
+      // Prefer a LAN-reachable host in the QR so phones outside this PC can open the viewer.
+      let publicUrl = pathUrl.href;
+      const host = window.location.hostname;
+      const isLoopback = host === 'localhost' || host === '127.0.0.1' || host === '::1';
+      if (isLoopback) {
+        try {
+          const netRes = await fetch('/api/public/network');
+          const netData = await netRes.json();
+          const lan = Array.isArray(netData.addresses) ? netData.addresses[0] : null;
+          if (lan) {
+            const lanUrl = new URL(pathUrl.href);
+            lanUrl.hostname = lan;
+            lanUrl.port = String(netData.port || window.location.port || '3000');
+            publicUrl = lanUrl.href;
+          }
+        } catch (err) {
+          console.warn('Could not resolve LAN address for QR:', err);
+        }
+      }
+
       document.getElementById('share-public-url').value = publicUrl;
       document.getElementById('btn-open-public-tab').href = publicUrl;
+      const qrHint = document.querySelector('[data-i18n="qr_hint"]');
+      if (qrHint && isLoopback && publicUrl.includes(window.location.hostname) === false) {
+        qrHint.textContent = this.lang === 'es'
+          ? '📲 Escanea el QR (misma Wi‑Fi). Abre solo el viewer, sin login.'
+          : '📲 Scan the QR (same Wi‑Fi). Opens viewer-only, no login.';
+      }
       const qrContainer = document.getElementById('qrcode-container');
       qrContainer.innerHTML = '';
       if (window.QRCode) {
@@ -653,13 +684,15 @@ class StudioApp {
           colorLight: '#ffffff',
           correctLevel: QRCode.CorrectLevel.M
         });
+      } else {
+        this.showToast('⚠️ Librería QR no cargó; usa el enlace copiable.', 4000);
       }
       document.getElementById('modal-share-qr').classList.remove('hidden');
     };
 
-    document.getElementById('btn-share-pres').addEventListener('click', openShareModal);
+    document.getElementById('btn-share-pres').addEventListener('click', () => { openShareModal(); });
     const shareViewBtn = document.getElementById('btn-share-pres-view');
-    if (shareViewBtn) shareViewBtn.addEventListener('click', openShareModal);
+    if (shareViewBtn) shareViewBtn.addEventListener('click', () => { openShareModal(); });
 
     document.getElementById('btn-close-share-modal').addEventListener('click', () => {
       document.getElementById('modal-share-qr').classList.add('hidden');
@@ -732,8 +765,9 @@ class StudioApp {
     const fileInput = document.getElementById('model-file-upload-input');
     dropzone.addEventListener('click', () => fileInput.click());
     fileInput.addEventListener('change', (e) => {
-      if (e.target.files.length > 0) {
-        this.handleUploadFile(e.target.files[0]);
+      if (e.target.files?.length > 0) {
+        this.handleUploadFiles(Array.from(e.target.files));
+        e.target.value = '';
       }
     });
 
@@ -885,6 +919,25 @@ class StudioApp {
   // ----------------------------------------------------
   // MODEL MANAGEMENT & SLIDES
   // ----------------------------------------------------
+  slideModelFilename(slide) {
+    return slide?.model_filename
+      || this.currentPresentation?.model_filename
+      || this.currentModel
+      || null;
+  }
+
+  slideModelFormat(slide) {
+    const filename = this.slideModelFilename(slide);
+    if (slide?.model_format) return slide.model_format;
+    if (filename) return filename.split('.').pop().toLowerCase();
+    return this.currentPresentation?.model_format || 'obj';
+  }
+
+  syncModelSelect(filename) {
+    const modelSelect = document.getElementById('select-active-model');
+    if (modelSelect && filename) modelSelect.value = filename;
+  }
+
   async loadModels() {
     try {
       const res = await fetch('/api/models');
@@ -893,37 +946,43 @@ class StudioApp {
 
       const select = document.getElementById('select-active-model');
       select.innerHTML = '';
+      if (this.models.length === 0) {
+        const opt = document.createElement('option');
+        opt.value = '';
+        opt.textContent = this.lang === 'es' ? 'Sin modelos — sube en Archivos 3D' : 'No models — upload in 3D Files';
+        select.appendChild(opt);
+        return;
+      }
       this.models.forEach(m => {
         const opt = document.createElement('option');
         opt.value = m.filename;
         opt.textContent = m.filename;
         select.appendChild(opt);
       });
+      if (this.currentModel) this.syncModelSelect(this.currentModel);
     } catch (err) {
       console.error('Error loading models:', err);
     }
   }
 
-  async selectModel(filename, preferredTourId = null) {
+  async loadEditorModel(filename, { autoFrame = true } = {}) {
+    if (!filename) return false;
     const loadToken = ++this.modelLoadToken;
-    await this.flushPendingAutosave();
     this.isLoadingModel = true;
     this.currentModel = filename;
-    const modelSelect = document.getElementById('select-active-model');
-    if (modelSelect) modelSelect.value = filename;
-
+    this.syncModelSelect(filename);
     const ext = filename.split('.').pop().toLowerCase();
     this.showToast(`Cargando ${filename}...`, 0);
-
     try {
-      await this.editorViewer.loadModel(`/uploads/${filename}`, ext, { autoFrame: true });
-      if (loadToken !== this.modelLoadToken) return;
+      await this.editorViewer.loadModel(`/uploads/${filename}`, ext, { autoFrame });
+      if (loadToken !== this.modelLoadToken) return false;
       this.hideToast();
-      await this.loadSlidesForModel(filename, preferredTourId, loadToken);
+      return true;
     } catch (err) {
       if (loadToken === this.modelLoadToken) {
         this.showToast(`Error al cargar: ${err.message}`, 4000);
       }
+      return false;
     } finally {
       if (loadToken === this.modelLoadToken) {
         this.isLoadingModel = false;
@@ -931,8 +990,42 @@ class StudioApp {
     }
   }
 
+  async assignModelToActiveSlide(filename) {
+    if (!filename) return;
+    if (!this.currentTourId || !this.currentSlides[this.activeSlideIdx]) {
+      this.showToast(
+        this.lang === 'es'
+          ? 'Abre o crea una presentación antes de asignar un modelo al slide.'
+          : 'Open or create a presentation before assigning a model to the slide.',
+        4000
+      );
+      this.syncModelSelect(this.currentModel || '');
+      return;
+    }
+
+    await this.flushPendingAutosave();
+    const slide = this.currentSlides[this.activeSlideIdx];
+    const format = filename.split('.').pop().toLowerCase();
+    slide.model_filename = filename;
+    slide.model_format = format;
+
+    const loaded = await this.loadEditorModel(filename, { autoFrame: true });
+    if (!loaded) return;
+
+    this.isApplyingSlide = false;
+    this.markSlideChanged('model', { userInitiated: true, immediate: true });
+    this.showToast(
+      this.lang === 'es'
+        ? `📦 Modelo del slide: ${filename}`
+        : `📦 Slide model: ${filename}`
+    );
+  }
+
   async createNewPresentation() {
-    const title = prompt('New presentation name:', `Presentation of ${this.currentModel}`);
+    const title = prompt(
+      this.lang === 'es' ? 'Nombre de la nueva presentación:' : 'New presentation name:',
+      this.lang === 'es' ? 'Mi presentación 3D' : 'My 3D presentation'
+    );
     if (!title || !title.trim()) {
       await this.loadTours();
       return;
@@ -940,13 +1033,12 @@ class StudioApp {
 
     try {
       await this.flushPendingAutosave();
+      const body = { title: title.trim() };
+      if (this.currentModel) body.existing_filename = this.currentModel;
       const res = await fetch('/api/presentations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: title.trim(),
-          existing_filename: this.currentModel
-        })
+        body: JSON.stringify(body)
       });
       const data = await res.json();
       if (!res.ok || !data.id) {
@@ -955,64 +1047,62 @@ class StudioApp {
 
       this.currentTourId = data.id;
       await this.loadTours();
-      await this.loadSlidesForModel(this.currentModel, data.id);
+      await this.openPresentation(data.id);
       this.showToast(`✅ Presentation created: "${title.trim()}"`);
     } catch (err) {
       alert('Error creating presentation: ' + err.message);
+      await this.loadTours();
     }
   }
 
-  async loadSlidesForModel(filename, preferredTourId = null, expectedModelToken = null) {
-    if (expectedModelToken !== null && expectedModelToken !== this.modelLoadToken) return;
-
-    let tour = preferredTourId
-      ? this.tours.find(t => String(t.id) === String(preferredTourId))
-      : this.tours.find(t => t.model_filename === filename);
-    if (!tour && this.tours.length > 0 && preferredTourId == null) {
-      tour = this.tours.find(t => t.model_filename === filename) || null;
-    }
-
-    this.currentTourId = tour ? tour.id : null;
-    this.activeSlideIdx = 0;
+  async openPresentation(tourId) {
+    const loadToken = ++this.presentationLoadToken;
+    await this.flushPendingAutosave();
     this.isApplyingSlide = true;
     this.pendingUserChange = false;
     this.autosaveDirty = false;
     this.pendingAutosave = null;
 
-    const titleEl = document.getElementById('display-pres-title');
     try {
-      if (tour) {
-        if (titleEl) titleEl.textContent = tour.title;
-        const headerPresentationSelect = document.getElementById('select-header-presentation');
-        if (headerPresentationSelect) headerPresentationSelect.value = String(tour.id);
-        const res = await fetch(`/api/presentations/${tour.id}`);
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || 'Unable to load presentation.');
-        if (expectedModelToken !== null && expectedModelToken !== this.modelLoadToken) return;
-        this.currentSlides = data.slides || [];
-      } else {
-        if (titleEl) titleEl.textContent = `Presentación de ${filename}`;
-        const headerPresentationSelect = document.getElementById('select-header-presentation');
-        if (headerPresentationSelect) headerPresentationSelect.value = '';
-        this.currentSlides = [];
-      }
+      const res = await fetch(`/api/presentations/${tourId}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Unable to load presentation.');
+      if (loadToken !== this.presentationLoadToken) return;
+
+      this.currentPresentation = data.presentation;
+      this.currentTourId = data.presentation.id;
+      this.currentSlides = data.slides || [];
+      this.activeSlideIdx = 0;
+
+      const titleEl = document.getElementById('display-pres-title');
+      if (titleEl) titleEl.textContent = data.presentation.title;
+      const headerPresentationSelect = document.getElementById('select-header-presentation');
+      if (headerPresentationSelect) headerPresentationSelect.value = String(data.presentation.id);
+
       this.renderTimelineSlides();
       if (this.currentSlides.length > 0) {
-        this.selectSlide(0);
+        await this.selectSlide(0);
       } else {
+        this.isApplyingSlide = false;
         this.setSaveStatus('No slides');
       }
     } catch (err) {
-      console.error('Error loading slides:', err);
-      this.showToast(`Error loading slides: ${err.message}`, 4000);
-      this.currentSlides = [];
-      this.renderTimelineSlides();
-      this.setSaveStatus('Load error');
-    } finally {
-      if (this.currentSlides.length === 0) {
-        this.isApplyingSlide = false;
-      }
+      this.isApplyingSlide = false;
+      this.showToast(`Error: ${err.message}`, 4000);
     }
+  }
+
+  /** @deprecated Prefer openPresentation / assignModelToActiveSlide */
+  async selectModel(filename, preferredTourId = null) {
+    if (preferredTourId) {
+      await this.openPresentation(preferredTourId);
+      return;
+    }
+    await this.assignModelToActiveSlide(filename);
+  }
+
+  async loadSlidesForModel(_filename, preferredTourId = null) {
+    if (preferredTourId) await this.openPresentation(preferredTourId);
   }
 
   async deleteSlideAt(idx) {
@@ -1046,7 +1136,7 @@ class StudioApp {
       this.renderTimelineSlides();
 
       if (this.currentSlides.length > 0) {
-        this.selectSlide(this.activeSlideIdx);
+        await this.selectSlide(this.activeSlideIdx);
       } else {
         this.editorViewer.deleteAllArrows();
         this.editorViewer.clearMarker();
@@ -1124,11 +1214,11 @@ class StudioApp {
     });
   }
 
-  selectSlide(idx) {
+  async selectSlide(idx) {
     if (idx < 0 || idx >= this.currentSlides.length) return;
     const leaving = this.currentSlides[this.activeSlideIdx];
     if (leaving?.id && this.autosaveDirty && leaving.id !== this.currentSlides[idx]?.id) {
-      this.flushPendingAutosave();
+      await this.flushPendingAutosave();
     }
 
     this.activeSlideIdx = idx;
@@ -1152,6 +1242,19 @@ class StudioApp {
     }
     const titleInput = document.getElementById('input-new-slide-title');
     if (titleInput) titleInput.value = s.title || '';
+
+    const modelFilename = this.slideModelFilename(s);
+    if (modelFilename && modelFilename !== this.currentModel) {
+      const loaded = await this.loadEditorModel(modelFilename, { autoFrame: false });
+      if (applyToken !== this.slideApplyToken) return;
+      if (!loaded) {
+        this.isApplyingSlide = false;
+        return;
+      }
+    } else if (modelFilename) {
+      this.syncModelSelect(modelFilename);
+      this.currentModel = modelFilename;
+    }
 
     // Restore camera, rotation, material, arrows, marker, and object position atomically
     this.editorViewer.applySlideState(s, { animate: true });
@@ -1206,8 +1309,8 @@ class StudioApp {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        title: `Tour de ${this.currentModel}`,
-        existing_filename: this.currentModel
+        title: this.currentModel ? `Tour de ${this.currentModel}` : 'Nueva presentación',
+        ...(this.currentModel ? { existing_filename: this.currentModel } : {})
       })
     });
     const createData = await createRes.json();
@@ -1215,17 +1318,7 @@ class StudioApp {
       throw new Error(createData.error || 'No se pudo crear la presentación.');
     }
 
-    this.currentTourId = createData.id;
-    await this.loadTours();
-    const detailRes = await fetch(`/api/presentations/${this.currentTourId}`);
-    const detailData = await detailRes.json();
-    if (!detailRes.ok) {
-      throw new Error(detailData.error || 'No se pudo cargar la presentación.');
-    }
-    this.currentSlides = detailData.slides || [];
-    this.activeSlideIdx = 0;
-    this.renderTimelineSlides();
-    if (this.currentSlides.length > 0) this.selectSlide(0);
+    await this.openPresentation(createData.id);
     return true;
   }
 
@@ -1241,6 +1334,8 @@ class StudioApp {
     if (currentMode === 'metal' && this.editorViewer.currentMetallicColor) {
       currentMode = `metal:${this.editorViewer.currentMetallicColor}`;
     }
+    const modelFilename = this.slideModelFilename(currentSlide) || this.currentModel;
+    const modelFormat = this.slideModelFormat(currentSlide);
 
     return {
       title,
@@ -1266,7 +1361,9 @@ class StudioApp {
         : [],
       rot_x: camState.rotation.x,
       rot_y: camState.rotation.y,
-      rot_z: camState.rotation.z
+      rot_z: camState.rotation.z,
+      model_filename: modelFilename,
+      model_format: modelFormat
     };
   }
 
@@ -1445,7 +1542,7 @@ class StudioApp {
         if (titleInput) titleInput.value = data.slide.title || '';
       }
 
-      this.selectSlide(this.activeSlideIdx);
+      await this.selectSlide(this.activeSlideIdx);
       this.setSaveStatus('Saved');
       this.showToast(
         shouldCopy
@@ -1520,19 +1617,18 @@ class StudioApp {
       if (loadToken !== this.presentationLoadToken) return;
 
       const tour = data.presentation;
+      this.presTour = tour;
       this.presTourSlides = data.slides || [];
       this.presSlideIdx = 0;
+      this.presLoadedModel = null;
 
       const tourSelect = document.getElementById('select-presentation-tour');
       if (tourSelect) tourSelect.value = String(tourId);
 
-      await this.presViewer.loadModel(`/uploads/${tour.model_filename}`, tour.model_format, { autoFrame: false });
-      if (loadToken !== this.presentationLoadToken) return;
-
       this.renderPresStrip();
 
       if (this.presTourSlides.length > 0) {
-        this.presGoTo(0);
+        await this.presGoTo(0);
       } else {
         document.getElementById('pres-step-indicator').textContent = 'Slide 0 de 0';
         document.getElementById('pres-slide-title').textContent = 'Sin slides';
@@ -1551,18 +1647,38 @@ class StudioApp {
     this.presTourSlides.forEach((s, idx) => {
       const pill = document.createElement('button');
       pill.className = `timeline-slide-pill ${idx === this.presSlideIdx ? 'active' : ''}`;
+      const modelHint = s.model_filename ? ` · ${s.model_filename}` : '';
       pill.textContent = `${idx + 1}. ${s.title}`;
+      pill.title = `${s.title}${modelHint}`;
       pill.addEventListener('click', () => this.presGoTo(idx));
       strip.appendChild(pill);
     });
   }
 
-  presGoTo(idx) {
+  async ensurePresModelForSlide(slide) {
+    const filename = slide?.model_filename || this.presTour?.model_filename;
+    const format = slide?.model_format || this.presTour?.model_format || (filename ? filename.split('.').pop().toLowerCase() : 'obj');
+    if (!filename) {
+      this.showToast('This slide has no 3D model assigned.', 4000);
+      return false;
+    }
+    if (filename === this.presLoadedModel) return true;
+    await this.presViewer.loadModel(`/uploads/${filename}`, format, { autoFrame: false });
+    this.presLoadedModel = filename;
+    return true;
+  }
+
+  async presGoTo(idx) {
     if (!this.presTourSlides || idx < 0 || idx >= this.presTourSlides.length) return;
     this.presSlideIdx = idx;
     const slide = this.presTourSlides[idx];
 
-    this.presViewer.applySlideState(slide, { animate: true });
+    try {
+      await this.ensurePresModelForSlide(slide);
+      this.presViewer.applySlideState(slide, { animate: true });
+    } catch (err) {
+      this.showToast(`Could not load slide model: ${err.message}`, 4000);
+    }
 
     document.getElementById('pres-step-indicator').textContent = `Slide ${idx + 1} de ${this.presTourSlides.length}`;
     document.getElementById('pres-slide-title').textContent = `${idx + 1}. ${slide.title}`;
@@ -1601,42 +1717,58 @@ class StudioApp {
           <span>Formato: ${m.format.toUpperCase()}</span>
           <span>${(m.sizeBytes / (1024 * 1024)).toFixed(2)} MB</span>
         </div>
-        <button class="btn-open-in-editor">🛠️ Abrir en Editor</button>
+        <button class="btn-open-in-editor">🛠️ Usar en slide activo</button>
       `;
 
-      card.querySelector('.btn-open-in-editor').addEventListener('click', () => {
-        this.selectModel(m.filename);
+      card.querySelector('.btn-open-in-editor').addEventListener('click', async () => {
+        if (!this.currentTourId) {
+          this.showToast(
+            this.lang === 'es'
+              ? 'Crea o abre una presentación primero.'
+              : 'Create or open a presentation first.',
+            4000
+          );
+          return;
+        }
         this.switchStage('editor');
+        await this.assignModelToActiveSlide(m.filename);
       });
 
       grid.appendChild(card);
     });
   }
 
-  async handleUploadFile(file) {
+  async handleUploadFiles(files) {
+    const list = (files || []).filter(Boolean);
+    if (list.length === 0) return;
+
     const formData = new FormData();
-    formData.append('title', file.name.split('.')[0]);
-    formData.append('modelFile', file);
+    list.forEach((file) => formData.append('modelFiles', file));
 
     try {
-      this.showToast('Subiendo archivo 3D...', 0);
-      const res = await fetch('/api/presentations', {
+      this.showToast(
+        list.length > 1 ? `Subiendo ${list.length} archivos 3D...` : 'Subiendo archivo 3D...',
+        0
+      );
+      const res = await fetch('/api/models', {
         method: 'POST',
         body: formData
       });
       const data = await res.json();
-      if (!res.ok || !data.id) {
-        throw new Error(data.error || 'Unable to upload the model.');
+      if (!res.ok || !data.models?.length) {
+        throw new Error(data.error || 'Unable to upload the model(s).');
       }
-      this.showToast('✅ Modelo 3D subido con éxito');
+      this.showToast(`✅ ${data.models.length} modelo(s) en la biblioteca`);
       await this.loadModels();
-      await this.loadTours();
-      const uploadedName = data.model_filename || file.name;
-      await this.selectModel(uploadedName, data.id);
-      this.switchStage('editor');
+      this.renderModelsGrid();
+      // Stay on models tab so the user can keep uploading a collection
     } catch (err) {
       alert('Error: ' + err.message);
     }
+  }
+
+  async handleUploadFile(file) {
+    return this.handleUploadFiles([file]);
   }
 }
 

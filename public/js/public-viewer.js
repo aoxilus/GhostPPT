@@ -14,6 +14,7 @@ class PublicViewerApp {
     this.backgroundStyle = this.readStoredBackgroundStyle();
     this.appBaseUrl = new URL('../', import.meta.url);
     this.loadToken = 0;
+    this.loadedModel = null;
 
     this.init();
   }
@@ -220,44 +221,15 @@ class PublicViewerApp {
       this.presentation = data.presentation;
       this.slides = Array.isArray(data.slides) ? data.slides : [];
       this.currentIdx = 0;
+      this.loadedModel = null;
 
       document.getElementById('public-pres-title').textContent = this.presentation.title;
       document.title = `${this.presentation.title} — GhostPPT 3D`;
 
-      if (!this.presentation.model_filename) {
-        this.renderStrip();
-        this.showStatus(
-          'Model missing',
-          'This presentation has no 3D model file attached.',
-          { presentationTitle: this.presentation.title }
-        );
-        return;
-      }
-
-      const modelUrl = new URL(
-        `uploads/${encodeURIComponent(this.presentation.model_filename)}`,
-        this.appBaseUrl
-      );
-
-      try {
-        await this.viewer.loadModel(modelUrl.href, this.presentation.model_format);
-      } catch (modelErr) {
-        if (token !== this.loadToken) return;
-        this.renderStrip();
-        this.showStatus(
-          'Could not load 3D model',
-          modelErr.message || String(modelErr),
-          { presentationTitle: this.presentation.title }
-        );
-        return;
-      }
-
-      if (token !== this.loadToken) return;
-
       this.renderStrip();
 
       if (this.slides.length > 0) {
-        this.goTo(0);
+        await this.goTo(0);
       } else {
         this.showStatus(
           'No slides yet',
@@ -273,6 +245,34 @@ class PublicViewerApp {
     }
   }
 
+  slideModel(slide) {
+    const filename = slide?.model_filename || this.presentation?.model_filename;
+    const format = slide?.model_format
+      || this.presentation?.model_format
+      || (filename ? filename.split('.').pop().toLowerCase() : null);
+    return { filename, format };
+  }
+
+  async ensureSlideModel(slide) {
+    const { filename, format } = this.slideModel(slide);
+    if (!filename) {
+      this.showStatus(
+        'Model missing',
+        'This slide has no 3D model assigned.',
+        { presentationTitle: this.presentation?.title }
+      );
+      return false;
+    }
+    if (filename === this.loadedModel) return true;
+    const modelUrl = new URL(
+      `uploads/${encodeURIComponent(filename)}`,
+      this.appBaseUrl
+    );
+    await this.viewer.loadModel(modelUrl.href, format || 'obj');
+    this.loadedModel = filename;
+    return true;
+  }
+
   renderStrip() {
     const strip = document.getElementById('public-slides-strip');
     if (!strip) return;
@@ -283,36 +283,48 @@ class PublicViewerApp {
       pill.type = 'button';
       pill.className = `timeline-slide-pill ${idx === this.currentIdx ? 'active' : ''}`;
       pill.textContent = `${idx + 1}. ${s.title}`;
+      pill.title = this.slideModel(s).filename || s.title;
       pill.addEventListener('click', () => this.goTo(idx));
       strip.appendChild(pill);
     });
   }
 
-  goTo(idx) {
+  async goTo(idx) {
     if (idx < 0 || idx >= this.slides.length) return;
     this.currentIdx = idx;
     const slide = this.slides[idx];
 
-    if (typeof this.viewer.applySlideState === 'function') {
-      this.viewer.applySlideState(slide, { animate: true });
-    } else {
-      this.viewer.flyTo(
-        { x: slide.camera_x, y: slide.camera_y, z: slide.camera_z },
-        { x: slide.target_x || 0, y: slide.target_y || 0, z: slide.target_z || 0 },
-        { x: slide.rot_x || 0, y: slide.rot_y || 0, z: slide.rot_z || 0 }
-      );
-      this.viewer.setObjectPosition(
-        slide.object_x ?? 0,
-        slide.object_y ?? 0,
-        slide.object_z ?? 0
-      );
-      this.viewer.setMaterial(slide.view_mode || 'metal:#e2e8f0');
-      this.viewer.setArrows(slide.arrows || []);
-      if (slide.marker_x !== null && slide.marker_x !== undefined) {
-        this.viewer.setMarker(slide.marker_x, slide.marker_y, slide.marker_z);
+    try {
+      const ok = await this.ensureSlideModel(slide);
+      if (!ok) return;
+      if (typeof this.viewer.applySlideState === 'function') {
+        this.viewer.applySlideState(slide, { animate: true });
       } else {
-        this.viewer.clearMarker();
+        this.viewer.flyTo(
+          { x: slide.camera_x, y: slide.camera_y, z: slide.camera_z },
+          { x: slide.target_x || 0, y: slide.target_y || 0, z: slide.target_z || 0 },
+          { x: slide.rot_x || 0, y: slide.rot_y || 0, z: slide.rot_z || 0 }
+        );
+        this.viewer.setObjectPosition(
+          slide.object_x ?? 0,
+          slide.object_y ?? 0,
+          slide.object_z ?? 0
+        );
+        this.viewer.setMaterial(slide.view_mode || 'metal:#e2e8f0');
+        this.viewer.setArrows(slide.arrows || []);
+        if (slide.marker_x !== null && slide.marker_x !== undefined) {
+          this.viewer.setMarker(slide.marker_x, slide.marker_y, slide.marker_z);
+        } else {
+          this.viewer.clearMarker();
+        }
       }
+    } catch (err) {
+      this.showStatus(
+        'Could not load 3D model',
+        err.message || String(err),
+        { presentationTitle: this.presentation?.title }
+      );
+      return;
     }
 
     document.getElementById('public-step-pill').textContent = `Slide ${idx + 1} of ${this.slides.length}`;
